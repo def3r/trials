@@ -1,36 +1,31 @@
-// Launch docs: rustup doc
-// Launch std lib docs: rustup doc std
-// ref: https://doc.rust-lang.org/rust-by-example/
+#![allow(dead_code)]
 
+use std::mem;
+
+// a var is immutable by default
 fn main() {
-    let x = 10;
-    let y = 20;
+    // Annotation is possible
+    let var: bool = true;
+    let c: char = ' ';
+    // var = false; can be done (immutable by default </3)
 
-    // format! is a macro, works just like sprintf in c
-    let s = format!("{x} + {y} = {}", x + y);
+    let mut i: i16 = 0;
+    i = 420;
 
-    // println! is also a macro, present in std::fmt
-    println!("{s}\n");
+    let arr: [u16; 4] = [0, 1, 2, 3];
+    let tup = (-32i16, 0f64, "ohno", '4');
 
-    // positional args
-    println!(
-        "{0} is pos 0 and {1} is pos 1, here's 0 again: {0}",
-        "Zero", 1
-    );
+    println!("{:?}", arr);
+    println!("{:?}", tup);
 
-    // named args also allowed
-    println!("{key} = {val}", key = "name", val = "rust");
-    // named + pos args
-    println!("{key} {0}= {val}", ":", key = "name", val = "rust");
+    println!("Classic ptr size {}", size_of::<&char>());
 
-    // different formatting opts, after ':' char
-    println!("Base 10: {}", 67);
-    println!("Base 2: {:b}", 67);
+    println!("{} bytes for bool", mem::size_of_val(&var));
+    println!("{} bytes for char is insane", mem::size_of_val(&c));
 
-    // right justify width
-    // text widht = 6, var width = 2; => 4 spaces from beg
-    println!("{:>6}", "so");
-
-    // to use named arg to specify var width, use $
-    println!("{number:0>width$}", number = 67, width = 10);
+    println!("w h y");
+    let res = std::any::type_name_of_val(&String::from("Hello :D"));
+    println!("{}", res);
+    let res = std::any::type_name_of_val("Hello :D");
+    println!("{}", res);
 }
