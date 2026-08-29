@@ -1,0 +1,1806 @@
+<title>Identifying the m-coloring backtracking search</title>
+<style>
+  :root {
+    --bg: #eef1ef;
+    --surface: #ffffff;
+    --surface-2: #e4e8e5;
+    --ink: #1b201d;
+    --muted: #5c6a63;
+    --line: #d3dbd6;
+    --accent: #a8481c;
+    --accent-soft: #f1e3d8;
+    --good: #3c7a4e;
+    --good-soft: #e3f0e6;
+    --skip: #7a5a92;
+    --skip-soft: #efe6f4;
+    --shadow: 0 1px 2px rgba(20, 24, 21, 0.06), 0 8px 24px -12px rgba(20, 24, 21, 0.18);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14181a;
+      --surface: #1c2325;
+      --surface-2: #232b2d;
+      --ink: #e8ece9;
+      --muted: #93a19b;
+      --line: #2c3436;
+      --accent: #e0864a;
+      --accent-soft: #3a2a1e;
+      --good: #6fbf86;
+      --good-soft: #1e3324;
+      --skip: #c39bdc;
+      --skip-soft: #2c2338;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.5);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14181a; --surface: #1c2325; --surface-2: #232b2d; --ink: #e8ece9;
+    --muted: #93a19b; --line: #2c3436; --accent: #e0864a; --accent-soft: #3a2a1e;
+    --good: #6fbf86; --good-soft: #1e3324; --skip: #c39bdc; --skip-soft: #2c2338;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.5);
+  }
+  :root[data-theme="light"] {
+    --bg: #eef1ef; --surface: #ffffff; --surface-2: #e4e8e5; --ink: #1b201d;
+    --muted: #5c6a63; --line: #d3dbd6; --accent: #a8481c; --accent-soft: #f1e3d8;
+    --good: #3c7a4e; --good-soft: #e3f0e6; --skip: #7a5a92; --skip-soft: #efe6f4;
+    --shadow: 0 1px 2px rgba(20, 24, 21, 0.06), 0 8px 24px -12px rgba(20, 24, 21, 0.18);
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  body { overflow-x: hidden; }
+
+  .wrap { max-width: 880px; margin: 0 auto; padding: 64px 24px 40px; }
+  .wide { max-width: 1180px; }
+
+  .eyebrow {
+    font-size: 12px; letter-spacing: 0.11em; text-transform: uppercase;
+    color: var(--accent); font-weight: 600; margin: 0 0 14px;
+  }
+  h1 {
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    font-size: clamp(30px, 4.4vw, 44px); line-height: 1.12; font-weight: 600;
+    margin: 0 0 18px; text-wrap: balance; letter-spacing: -0.01em;
+  }
+  h2 {
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    font-size: 26px; font-weight: 600; margin: 0 0 6px; text-wrap: balance;
+  }
+  h3 {
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    font-size: 18px; font-weight: 600; margin: 0 0 4px;
+  }
+  .section-num {
+    font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+    font-size: 12px; color: var(--muted); margin: 0 0 6px;
+  }
+  p { line-height: 1.62; margin: 0 0 16px; max-width: 68ch; }
+  .lede {
+    font-size: 19px; line-height: 1.55; color: var(--ink); max-width: 62ch;
+  }
+  .muted { color: var(--muted); }
+  a { color: var(--accent); }
+  code, .mono {
+    font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, "Liberation Mono", monospace;
+    font-size: 0.88em;
+  }
+  code {
+    background: var(--surface-2); border-radius: 4px; padding: 0.12em 0.4em;
+  }
+
+  section { margin: 0 0 72px; }
+  section:first-of-type { margin-top: 0; }
+  .divider {
+    border: none; border-top: 1px solid var(--line); margin: 0 0 56px;
+  }
+
+  /* verdict card */
+  .verdict {
+    display: flex; flex-direction: column; gap: 14px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 26px 28px; box-shadow: var(--shadow); margin-top: 28px;
+  }
+  .verdict .tag {
+    display: inline-flex; align-items: center; gap: 8px; width: fit-content;
+    font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700;
+    color: var(--good); background: var(--good-soft); border-radius: 999px; padding: 5px 12px;
+  }
+  .verdict .tag::before { content: "●"; font-size: 8px; }
+
+  /* pass verdict table */
+  .pass-table {
+    width: 100%; border-collapse: collapse; margin-top: 24px;
+    font-size: 15px;
+  }
+  .pass-table th {
+    text-align: left; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600; padding: 0 14px 10px; border-bottom: 1px solid var(--line);
+  }
+  .pass-table td {
+    padding: 14px 14px; border-bottom: 1px solid var(--line); vertical-align: top;
+  }
+  .pass-table tr:last-child td { border-bottom: none; }
+  .pass-table td:first-child { font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, monospace; font-weight: 600; white-space: nowrap; }
+  .pill {
+    display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: 0.03em;
+    padding: 3px 10px; border-radius: 999px; white-space: nowrap;
+  }
+  .pill.yes { color: var(--good); background: var(--good-soft); }
+  .pill.no { color: var(--skip); background: var(--skip-soft); }
+  .pill.opt { color: var(--accent); background: var(--accent-soft); }
+  .pass-table .why { color: var(--muted); }
+
+  /* code panel */
+  .code-panel {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    box-shadow: var(--shadow); overflow: hidden; margin: 22px 0;
+  }
+  .code-panel .cp-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--surface-2);
+  }
+  .code-panel .cp-head span {
+    font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+    font-size: 12.5px; color: var(--muted);
+  }
+  .code-panel pre {
+    margin: 0; padding: 18px 20px; overflow-x: auto;
+    font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, "Liberation Mono", monospace;
+    font-size: 13px; line-height: 1.7; tab-size: 2;
+  }
+  .code-panel .blk { color: var(--accent); font-weight: 700; }
+  .code-panel .kw { color: var(--good); font-weight: 600; }
+  .code-panel .cmt { color: var(--muted); font-style: italic; }
+  .code-panel .num { font-variant-numeric: tabular-nums; }
+
+  .annot-grid {
+    display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 20px;
+  }
+  .annot {
+    display: grid; grid-template-columns: 120px 1fr; gap: 16px;
+    padding: 12px 0; border-top: 1px solid var(--line);
+  }
+  .annot:first-child { border-top: none; }
+  .annot .lbl {
+    font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+    font-size: 12px; color: var(--accent); font-weight: 600; padding-top: 2px;
+  }
+  .annot .txt { font-size: 14.5px; line-height: 1.55; color: var(--ink); margin: 0; }
+
+  /* diagram exhibits */
+  .exhibit {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    box-shadow: var(--shadow); margin-top: 20px; overflow: hidden;
+  }
+  .exhibit-head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+    padding: 14px 20px; border-bottom: 1px solid var(--line); flex-wrap: wrap;
+  }
+  .exhibit-head h3 { margin: 0; }
+  .exhibit-head .sym {
+    font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+    font-size: 11.5px; color: var(--muted);
+  }
+  .exhibit-body {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+  }
+  .exhibit-body.single { grid-template-columns: 1fr; }
+  .exhibit-col {
+    padding: 16px; border-left: 1px solid var(--line);
+  }
+  .exhibit-col:first-child { border-left: none; }
+  .exhibit-col .col-label {
+    font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700;
+    color: var(--muted); margin: 0 0 10px; display: flex; align-items: center; gap: 8px;
+  }
+  .exhibit-col .col-label .n { font-variant-numeric: tabular-nums; color: var(--accent); }
+  .diagram-frame {
+    background: #ffffff; border: 1px solid #d8d8d8; border-radius: 6px;
+    overflow: auto; max-height: 560px; padding: 10px;
+  }
+  .diagram-frame svg { display: block; height: auto; }
+  .exhibit-foot {
+    padding: 12px 20px 18px; font-size: 13.5px; color: var(--muted); line-height: 1.55;
+  }
+
+  @media (max-width: 760px) {
+    .exhibit-body { grid-template-columns: 1fr; }
+    .exhibit-col { border-left: none; border-top: 1px solid var(--line); }
+    .exhibit-col:first-child { border-top: none; }
+    .annot { grid-template-columns: 1fr; gap: 4px; }
+  }
+
+  footer {
+    max-width: 880px; margin: 0 auto; padding: 0 24px 64px;
+    color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); padding-top: 20px;
+  }
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">LLVM IR structural analysis · test/kcolor.cpp</p>
+  <h1>The m-coloring backtracking search doesn't loop over candidates &mdash; it recurses through them.</h1>
+  <p class="lede">
+    That's the one structural fact that matters. MaxCut and TSP's matchers both look for an
+    outer <code>Loop</code> that enumerates an exponential candidate space and tracks a best
+    value across iterations. <code>solve()</code> has no such loop &mdash; the candidate space
+    (colors 0, 1, 2, &hellip; at each recursion depth) is walked by a small, bounded,
+    per-call loop plus a self-recursive call. The identifying shape is still simple; it's just a
+    different primitive.
+  </p>
+
+  <section>
+    <div class="verdict">
+      <span class="tag">Identifiable</span>
+      <p style="margin:0; max-width: 66ch;">
+        <code>solve()</code> compiles to a clean, four-block loop with a single self-recursive
+        call site, a guard call (<code>isSafe</code>), and a textbook
+        assign&nbsp;&rarr;&nbsp;recurse&nbsp;&rarr;&nbsp;backtrack idiom on the same memory
+        location. Everything a matcher needs is visible after <code>mem2reg</code> +
+        <code>simplifycfg</code> + <code>instcombine</code> alone. <code>loop-simplify</code>
+        and <code>lcssa</code> verifiably change nothing on this IR &mdash; both loops already
+        have a single preheader and a single latch, and no loop-local value is read after the
+        loop exits. <code>indvars</code> is actively unhelpful here: it widens the counters to
+        i64 and, in <code>solve()</code>, inserts an extra block just to clamp a trip count that
+        was never going to be negative.
+      </p>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <section>
+    <p class="section-num">01</p>
+    <h2>What had to change to compile it</h2>
+    <p>
+      The version you pasted declared <code>int color[N]</code> and <code>bool
+      graph[101][101]</code> as raw C arrays &mdash; the first is a VLA with a brace
+      initializer, which neither C nor C++ permits (<code>error: variable-sized object may not
+      be initialized</code>). I rewrote both as <code>vector&lt;int&gt;</code> and
+      <code>vector&lt;vector&lt;int&gt;&gt;</code>, matching how <code>maxcut.cpp</code> and
+      <code>tsp.cpp</code> already take their graph/cost-matrix input &mdash; so the same
+      <code>operator[]</code>-call recognition the existing matchers use applies here too,
+      instead of needing a second indexing pattern for raw <code>GetElementPtrInst</code>
+      chains. The algorithm itself is untouched.
+    </p>
+  </section>
+
+  <section>
+    <p class="section-num">02</p>
+    <h2>The shape, after canonicalization</h2>
+    <p>
+      This is <code>solve()</code>'s entire body post <code>sroa,mem2reg,simplifycfg,instcombine</code>
+      &mdash; no <code>loop-simplify</code>, no <code>lcssa</code>, no <code>indvars</code>. Five
+      basic blocks, one phi, one recursive call.
+    </p>
+
+    <div class="code-panel">
+      <div class="cp-head"><span>solve() &middot; stage A (sroa,mem2reg,simplifycfg,instcombine)</span></div>
+      <pre><span class="blk">entry:</span>
+  %cmp = icmp eq i32 %node, %N                    <span class="cmt">; base case: node == N</span>
+  br i1 %cmp, label %<span class="blk">return</span>, label %<span class="blk">for.cond</span>
+
+<span class="blk">for.cond:</span>                                       <span class="cmt">; preds = %entry, %for.inc</span>
+  %i.0 = phi i32 [ %inc, %for.inc ], [ 1, %entry ]  <span class="cmt">; candidate color, 1..m</span>
+  %cmp1.not = icmp sgt i32 %i.0, %m
+  br i1 %cmp1.not, label %<span class="blk">return</span>, label %<span class="blk">for.body</span>
+
+<span class="blk">for.body:</span>                                       <span class="cmt">; preds = %for.cond</span>
+  %call = call i1 @isSafe(node, color, graph, N, i.0)   <span class="cmt">; guard call</span>
+  br i1 %call, label %<span class="blk">if.then2</span>, label %<span class="blk">for.inc</span>
+
+<span class="blk">if.then2:</span>                                       <span class="cmt">; preds = %for.body</span>
+  %call3 = call ptr @vector::operator[](%color, %node)
+  store i32 %i.0, ptr %call3                       <span class="cmt">; color[node] = i   (assign)</span>
+  %add = add nsw i32 %node, 1
+  %call4 = <b class="kw">call i1 @solve</b>(%add, %color, %m, %N, %graph)  <span class="cmt">; SELF-RECURSIVE CALL</span>
+  br i1 %call4, label %<span class="blk">return</span>, label %<span class="blk">if.end6</span>
+
+<span class="blk">if.end6:</span>                                        <span class="cmt">; preds = %if.then2</span>
+  %call8 = call ptr @vector::operator[](%color, %node)
+  store i32 0, ptr %call8                          <span class="cmt">; color[node] = 0   (backtrack)</span>
+  br label %<span class="blk">for.inc</span>
+
+<span class="blk">for.inc:</span>                                        <span class="cmt">; preds = %for.body, %if.end6</span>
+  %inc = add nuw nsw i32 %i.0, 1
+  br label %<span class="blk">for.cond</span>
+
+<span class="blk">return:</span>                                         <span class="cmt">; preds = %for.cond, %if.then2, %entry</span>
+  %retval.0 = phi i1 [ true, %if.then2 ], [ true, %entry ], [ false, %for.cond ]
+  ret i1 %retval.0</pre>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot"><div class="lbl">base case</div><p class="txt"><code>entry</code>: an equality compare between the recursion-depth parameter (<code>node</code>) and the problem-size parameter (<code>N</code>). True path returns success directly &mdash; no recursive call, no loop.</p></div>
+      <div class="annot"><div class="lbl">candidate loop</div><p class="txt"><code>for.cond</code>/<code>for.body</code>/<code>for.inc</code>: a plain bounded counting loop, <code>1..m</code>. Not a search-space enumeration loop like MaxCut's subset walk &mdash; <code>m</code> is the color count, not the problem size.</p></div>
+      <div class="annot"><div class="lbl">guard call</div><p class="txt"><code>for.body</code> calls a separate, non-recursive helper (<code>isSafe</code>) and branches on its boolean result. Structurally the same "recognized helper call gates a branch" shape <code>tsp_pass.cpp</code> already uses for <code>next_permutation</code>.</p></div>
+      <div class="annot"><div class="lbl">self-call</div><p class="txt"><code>if.then2</code>: <code>solve</code> calls <code>solve</code>. This is the one primitive MaxCut/TSP's matchers never needed &mdash; <code>CB-&gt;getCalledFunction() == &amp;F</code>, nothing more exotic.</p></div>
+      <div class="annot"><div class="lbl">assign/backtrack</div><p class="txt">Same memory location (<code>color[node]</code>), written before the recursive call and rewritten after a failed one. The classic backtracking idiom, and a clean, checkable invariant: same GEP/index, two stores, one recursive call between them.</p></div>
+      <div class="annot"><div class="lbl">terminal phi</div><p class="txt"><code>return</code> merges exactly three incoming values: success-from-base-case, success-from-recursion, failure-from-exhausted-loop. A 3-way phi is itself part of the signature &mdash; a plain enumeration loop (MaxCut/TSP style) wouldn't produce this shape.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <p class="section-num">03</p>
+    <h2>What passes/analyses actually earn their keep</h2>
+    <p>Evidence-based, not assumed &mdash; each row below is checked against an actual diff of the pipeline stages (exhibits in &sect;04).</p>
+
+    <table class="pass-table">
+      <thead>
+        <tr><th>Pass / analysis</th><th>Verdict</th><th>Why</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>sroa + mem2reg</td>
+          <td><span class="pill yes">essential</span></td>
+          <td class="why">Same as MaxCut/TSP &mdash; promotes <code>node</code>/<code>i</code>/scalar temporaries off the stack. Without it every block is buried in <code>alloca</code>/<code>store</code> noise (see the raw exhibits below).</td>
+        </tr>
+        <tr>
+          <td>simplifycfg + instcombine</td>
+          <td><span class="pill yes">essential</span></td>
+          <td class="why">Collapses the <code>if (isSafe) { assign; recurse; }</code> source shape into the clean 5-block CFG above &mdash; without it, the guard/assign/backtrack blocks stay fragmented across extra empty blocks.</td>
+        </tr>
+        <tr>
+          <td>LoopInfo</td>
+          <td><span class="pill yes">still needed</span></td>
+          <td class="why">Not for an outer search loop (there isn't one) &mdash; but the color-trying loop inside <code>solve</code> and the neighbor-check loop inside <code>isSafe</code> are both real <code>Loop</code>s, and the same phi/preheader/latch primitives <code>tsp_pass.cpp</code> already has apply directly.</td>
+        </tr>
+        <tr>
+          <td>loop-simplify</td>
+          <td><span class="pill no">no-op here</span></td>
+          <td class="why">Diffed stage A against stage A+loop-simplify+lcssa+indvars: both loops already have exactly one preheader and one latch post-simplifycfg. Nothing changes except what indvars separately does (next row).</td>
+        </tr>
+        <tr>
+          <td>lcssa</td>
+          <td><span class="pill no">no-op here</span></td>
+          <td class="why"><code>grep -n lcssa</code> on the fully-piped IR: zero matches. Neither loop's induction value is used after the loop exits &mdash; both functions <code>return</code> straight out of loop-adjacent blocks, so there's nothing for LCSSA to reconcile.</td>
+        </tr>
+        <tr>
+          <td>indvars</td>
+          <td><span class="pill no">actively unhelpful</span></td>
+          <td class="why">Widens <code>i32</code> counters to <code>i64</code> (extra casts to strip, same as <code>stripIntCasts</code> already handles) and rewrites <code>icmp sgt i.0, m</code> to an <code>eq</code>-against-trip-count form gated by a new <code>llvm.smax.i32</code> clamp &mdash; adding a whole extra block in <code>solve()</code> that isn't there without it.</td>
+        </tr>
+        <tr>
+          <td>self-recursion check</td>
+          <td><span class="pill opt">new, but small</span></td>
+          <td class="why">Not an existing LLVM pass &mdash; just <code>CB-&gt;getCalledFunction() == &amp;F</code> on a <code>CallBase</code> inside <code>F</code> itself. No call-graph SCC analysis needed for a single self-call.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <hr class="divider" />
+
+  <section class="wide">
+    <p class="section-num">04</p>
+    <h2>CFG exhibits</h2>
+    <p>Raw (<code>-O0</code>, unoptimized) on the left, canonicalized (stage A) on the right. Diagrams render at native size &mdash; scroll to read block contents.</p>
+
+    <div class="exhibit">
+      <div class="exhibit-head">
+        <h3>solve()</h3>
+        <span class="sym">_Z5solveiRSt6vectorIiSaIiEEiiRS_IS1_SaIS1_EE</span>
+      </div>
+      <div class="exhibit-body">
+        <div class="exhibit-col">
+          <p class="col-label"><span class="n">14</span> blocks &middot; raw</p>
+          <div class="diagram-frame"><svg width="1354pt" height="1782pt"
+ viewBox="0.00 0.00 1354.00 1782.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 1777.5)">
+<title>CFG for &#39;_Z5solveiRSt6vectorIiSaIiEEiiRS_IS1_SaIS1_EE&#39; function</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-1777.5 1349.58,-1777.5 1349.58,4 -4,4"/>
+<text xml:space="preserve" text-anchor="middle" x="672.79" y="-7.95" font-family="Times,serif" font-size="14.00">CFG for &#39;_Z5solveiRSt6vectorIiSaIiEEiiRS_IS1_SaIS1_EE&#39; function</text>
+<!-- Node0x5644ca708f20 -->
+<g id="node1" class="node">
+<title>Node0x5644ca708f20</title>
+<polygon fill="#cc403a" fill-opacity="0.439216" stroke="#3d50c3" points="353.95,-1438.5 353.95,-1773 724.7,-1773 724.7,-1438.5 353.95,-1438.5"/>
+<text xml:space="preserve" text-anchor="start" x="361.95" y="-1755.7" font-family="Courier,monospace" font-size="14.00">entry:</text>
+<polyline fill="none" stroke="#3d50c3" points="353.95,-1747.75 724.7,-1747.75"/>
+<text xml:space="preserve" text-anchor="start" x="361.95" y="-1730.45" font-family="Courier,monospace" font-size="14.00">%retval = alloca i1, align 1</text>
+<text xml:space="preserve" text-anchor="start" x="361.95" y="-1713.2" font-family="Courier,monospace" font-size="14.00"> %node.addr = alloca i32, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="361.95" y="-1695.95" font-family="Courier,monospace" font-size="14.00"> %color.addr = alloca ptr, align 8</text>
+<text xml:space="preserve" text-anchor="start" x="361.95" y="-1678.7" font-family="Courier,monospace" font-size="14.00"> %m.addr = alloca i32, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="361.95" y="-1661.45" font-family="Courier,monospace" font-size="14.00"> %N.addr = alloca i32, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="361.95" y="-1644.2" font-family="Courier,monospace" font-size="14.00"> %graph.addr = alloca ptr, align 8</text>
+<text xml:space="preserve" text-anchor="start" x="361.95" y="-1626.95" font-family="Courier,monospace" font-size="14.00"> %i = alloca i32, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="361.95" y="-1609.7" font-family="Courier,monospace" font-size="14.00"> store i32 %node, ptr %node.addr, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="361.95" y="-1592.45" font-family="Courier,monospace" font-size="14.00"> store ptr %color, ptr %color.addr, align 8</text>
+<text xml:space="preserve" text-anchor="start" x="361.95" y="-1575.2" font-family="Courier,monospace" font-size="14.00"> store i32 %m, ptr %m.addr, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="361.95" y="-1557.95" font-family="Courier,monospace" font-size="14.00"> store i32 %N, ptr %N.addr, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="361.95" y="-1540.7" font-family="Courier,monospace" font-size="14.00"> store ptr %graph, ptr %graph.addr, align 8</text>
+<text xml:space="preserve" text-anchor="start" x="361.95" y="-1523.45" font-family="Courier,monospace" font-size="14.00"> %0 = load i32, ptr %node.addr, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="361.95" y="-1506.2" font-family="Courier,monospace" font-size="14.00"> %1 = load i32, ptr %N.addr, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="361.95" y="-1488.95" font-family="Courier,monospace" font-size="14.00"> %cmp = icmp eq i32 %0, %1</text>
+<text xml:space="preserve" text-anchor="start" x="361.95" y="-1471.7" font-family="Courier,monospace" font-size="14.00"> br i1 %cmp, label %if.then, label %if.end</text>
+<polyline fill="none" stroke="#3d50c3" points="353.95,-1463.75 724.7,-1463.75"/>
+<text xml:space="preserve" text-anchor="middle" x="446.58" y="-1446.45" font-family="Courier,monospace" font-size="14.00">T</text>
+<polyline fill="none" stroke="#3d50c3" points="539.2,-1438.5 539.2,-1463.75"/>
+<text xml:space="preserve" text-anchor="middle" x="631.83" y="-1446.45" font-family="Courier,monospace" font-size="14.00">F</text>
+</g>
+<!-- Node0x5644ca706a40 -->
+<g id="node2" class="node">
+<title>Node0x5644ca706a40</title>
+<polygon fill="#d24b40" fill-opacity="0.439216" stroke="#3d50c3" points="159.95,-1199.12 159.95,-1266.88 464.7,-1266.88 464.7,-1199.12 159.95,-1199.12"/>
+<text xml:space="preserve" text-anchor="start" x="167.95" y="-1249.58" font-family="Courier,monospace" font-size="14.00">if.then:</text>
+<polyline fill="none" stroke="#3d50c3" points="159.95,-1241.62 464.7,-1241.62"/>
+<text xml:space="preserve" text-anchor="start" x="167.95" y="-1224.33" font-family="Courier,monospace" font-size="14.00">store i1 true, ptr %retval, align 1</text>
+<text xml:space="preserve" text-anchor="start" x="167.95" y="-1207.08" font-family="Courier,monospace" font-size="14.00"> br label %return</text>
+</g>
+<!-- Node0x5644ca708f20&#45;&gt;Node0x5644ca706a40 -->
+<g id="edge1" class="edge">
+<title>Node0x5644ca708f20:s0&#45;&gt;Node0x5644ca706a40</title>
+<path fill="none" stroke="black" d="M446.58,-1438C446.58,-1373.09 398.55,-1312.85 359.95,-1274.91"/>
+<polygon fill="black" stroke="black" points="362.61,-1272.61 352.97,-1268.21 357.76,-1277.66 362.61,-1272.61"/>
+</g>
+<!-- Node0x5644ca709010 -->
+<g id="node3" class="node">
+<title>Node0x5644ca709010</title>
+<polygon fill="#d24b40" fill-opacity="0.439216" stroke="#3d50c3" points="603.83,-1333.75 603.83,-1401.5 850.83,-1401.5 850.83,-1333.75 603.83,-1333.75"/>
+<text xml:space="preserve" text-anchor="start" x="611.83" y="-1384.2" font-family="Courier,monospace" font-size="14.00">if.end:</text>
+<polyline fill="none" stroke="#3d50c3" points="603.83,-1376.25 850.83,-1376.25"/>
+<text xml:space="preserve" text-anchor="start" x="611.83" y="-1358.95" font-family="Courier,monospace" font-size="14.00">store i32 1, ptr %i, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="611.83" y="-1341.7" font-family="Courier,monospace" font-size="14.00"> br label %for.cond</text>
+</g>
+<!-- Node0x5644ca708f20&#45;&gt;Node0x5644ca709010 -->
+<g id="edge2" class="edge">
+<title>Node0x5644ca708f20:s1&#45;&gt;Node0x5644ca709010</title>
+<path fill="none" stroke="black" d="M725.45,-1451.12C742.9,-1451.12 744.17,-1432.46 740.71,-1412.88"/>
+<polygon fill="black" stroke="black" points="744.15,-1412.22 738.61,-1403.18 737.3,-1413.7 744.15,-1412.22"/>
+</g>
+<!-- Node0x5644ca706d30 -->
+<g id="node4" class="node">
+<title>Node0x5644ca706d30</title>
+<polygon fill="#cc403a" fill-opacity="0.439216" stroke="#3d50c3" points="29.95,-165 29.95,-232.75 334.7,-232.75 334.7,-165 29.95,-165"/>
+<text xml:space="preserve" text-anchor="start" x="37.95" y="-215.45" font-family="Courier,monospace" font-size="14.00">return:</text>
+<polyline fill="none" stroke="#3d50c3" points="29.95,-207.5 334.7,-207.5"/>
+<text xml:space="preserve" text-anchor="start" x="37.95" y="-190.2" font-family="Courier,monospace" font-size="14.00">%20 = load i1, ptr %retval, align 1</text>
+<text xml:space="preserve" text-anchor="start" x="37.95" y="-172.95" font-family="Courier,monospace" font-size="14.00"> ret i1 %20</text>
+</g>
+<!-- Node0x5644ca706a40&#45;&gt;Node0x5644ca706d30 -->
+<g id="edge3" class="edge">
+<title>Node0x5644ca706a40&#45;&gt;Node0x5644ca706d30</title>
+<path fill="none" stroke="black" d="M275.06,-1198.85C211.41,-1139.42 84,-1007.54 36.33,-864.75 -18.18,-701.5 -4.93,-644.59 36.33,-477.5 58.51,-387.66 115.57,-294.77 151.43,-242.46"/>
+<polygon fill="black" stroke="black" points="154.18,-244.63 157.01,-234.42 148.43,-240.64 154.18,-244.63"/>
+</g>
+<!-- Node0x5644ca70aeb0 -->
+<g id="node5" class="node">
+<title>Node0x5644ca70aeb0</title>
+<polygon fill="#b70d28" fill-opacity="0.439216" stroke="#b70d28" points="630.7,-1169.25 630.7,-1296.75 1017.95,-1296.75 1017.95,-1169.25 630.7,-1169.25"/>
+<text xml:space="preserve" text-anchor="start" x="638.7" y="-1279.45" font-family="Courier,monospace" font-size="14.00">for.cond:</text>
+<polyline fill="none" stroke="#b70d28" points="630.7,-1271.5 1017.95,-1271.5"/>
+<text xml:space="preserve" text-anchor="start" x="638.7" y="-1254.2" font-family="Courier,monospace" font-size="14.00">%2 = load i32, ptr %i, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="638.7" y="-1236.95" font-family="Courier,monospace" font-size="14.00"> %3 = load i32, ptr %m.addr, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="638.7" y="-1219.7" font-family="Courier,monospace" font-size="14.00"> %cmp1 = icmp sle i32 %2, %3</text>
+<text xml:space="preserve" text-anchor="start" x="638.7" y="-1202.45" font-family="Courier,monospace" font-size="14.00"> br i1 %cmp1, label %for.body, label %for.end</text>
+<polyline fill="none" stroke="#b70d28" points="630.7,-1194.5 1017.95,-1194.5"/>
+<text xml:space="preserve" text-anchor="middle" x="727.33" y="-1177.2" font-family="Courier,monospace" font-size="14.00">T</text>
+<polyline fill="none" stroke="#b70d28" points="823.95,-1169.25 823.95,-1194.5"/>
+<text xml:space="preserve" text-anchor="middle" x="920.58" y="-1177.2" font-family="Courier,monospace" font-size="14.00">F</text>
+</g>
+<!-- Node0x5644ca709010&#45;&gt;Node0x5644ca70aeb0 -->
+<g id="edge4" class="edge">
+<title>Node0x5644ca709010&#45;&gt;Node0x5644ca70aeb0</title>
+<path fill="none" stroke="black" d="M751.55,-1333.5C757.68,-1325.13 764.5,-1315.8 771.43,-1306.32"/>
+<polygon fill="black" stroke="black" points="774.14,-1308.55 777.21,-1298.41 768.49,-1304.42 774.14,-1308.55"/>
+</g>
+<!-- Node0x5644ca70b220 -->
+<g id="node6" class="node">
+<title>Node0x5644ca70b220</title>
+<polygon fill="#b70d28" fill-opacity="0.439216" stroke="#b70d28" points="545.58,-901.25 545.58,-1132.25 1205.08,-1132.25 1205.08,-901.25 545.58,-901.25"/>
+<text xml:space="preserve" text-anchor="start" x="553.58" y="-1114.95" font-family="Courier,monospace" font-size="14.00">for.body:</text>
+<polyline fill="none" stroke="#b70d28" points="545.58,-1107 1205.08,-1107"/>
+<text xml:space="preserve" text-anchor="start" x="553.58" y="-1089.7" font-family="Courier,monospace" font-size="14.00">%4 = load i32, ptr %node.addr, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="553.58" y="-1072.45" font-family="Courier,monospace" font-size="14.00"> %5 = load ptr, ptr %color.addr, align 8, !nonnull !5, !align !6</text>
+<text xml:space="preserve" text-anchor="start" x="553.58" y="-1055.2" font-family="Courier,monospace" font-size="14.00"> %6 = load ptr, ptr %graph.addr, align 8, !nonnull !5, !align !6</text>
+<text xml:space="preserve" text-anchor="start" x="553.58" y="-1037.95" font-family="Courier,monospace" font-size="14.00"> %7 = load i32, ptr %N.addr, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="553.58" y="-1020.7" font-family="Courier,monospace" font-size="14.00"> %8 = load i32, ptr %i, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="553.58" y="-1003.45" font-family="Courier,monospace" font-size="14.00"> %call = call noundef zeroext i1</text>
+<text xml:space="preserve" text-anchor="start" x="553.58" y="-986.2" font-family="Courier,monospace" font-size="14.00">... @_Z6isSafeiRSt6vectorIiSaIiEERS_IS1_SaIS1_EEii(i32 noundef %4, ptr noundef</text>
+<text xml:space="preserve" text-anchor="start" x="553.58" y="-968.95" font-family="Courier,monospace" font-size="14.00">... nonnull align 8 dereferenceable(24) %5, ptr noundef nonnull align 8</text>
+<text xml:space="preserve" text-anchor="start" x="553.58" y="-951.7" font-family="Courier,monospace" font-size="14.00">... dereferenceable(24) %6, i32 noundef %7, i32 noundef %8)</text>
+<text xml:space="preserve" text-anchor="start" x="553.58" y="-934.45" font-family="Courier,monospace" font-size="14.00"> br i1 %call, label %if.then2, label %if.end9</text>
+<polyline fill="none" stroke="#b70d28" points="545.58,-926.5 1205.08,-926.5"/>
+<text xml:space="preserve" text-anchor="middle" x="710.2" y="-909.2" font-family="Courier,monospace" font-size="14.00">T</text>
+<polyline fill="none" stroke="#b70d28" points="874.83,-901.25 874.83,-926.5"/>
+<text xml:space="preserve" text-anchor="middle" x="1039.95" y="-909.2" font-family="Courier,monospace" font-size="14.00">F</text>
+</g>
+<!-- Node0x5644ca70aeb0&#45;&gt;Node0x5644ca70b220 -->
+<g id="edge5" class="edge">
+<title>Node0x5644ca70aeb0:s0&#45;&gt;Node0x5644ca70b220</title>
+<path fill="none" stroke="black" d="M727.33,-1168.75C727.33,-1159.82 728.66,-1151.22 731.08,-1142.97"/>
+<polygon fill="black" stroke="black" points="734.31,-1144.35 734.36,-1133.76 727.71,-1142 734.31,-1144.35"/>
+</g>
+<!-- Node0x5644ca70b4a0 -->
+<g id="node7" class="node">
+<title>Node0x5644ca70b4a0</title>
+<polygon fill="#d65244" fill-opacity="0.439216" stroke="#3d50c3" points="45.83,-637.25 45.83,-705 358.83,-705 358.83,-637.25 45.83,-637.25"/>
+<text xml:space="preserve" text-anchor="start" x="53.83" y="-687.7" font-family="Courier,monospace" font-size="14.00">for.end:</text>
+<polyline fill="none" stroke="#3d50c3" points="45.83,-679.75 358.83,-679.75"/>
+<text xml:space="preserve" text-anchor="start" x="53.83" y="-662.45" font-family="Courier,monospace" font-size="14.00">store i1 false, ptr %retval, align 1</text>
+<text xml:space="preserve" text-anchor="start" x="53.83" y="-645.2" font-family="Courier,monospace" font-size="14.00"> br label %return</text>
+</g>
+<!-- Node0x5644ca70aeb0&#45;&gt;Node0x5644ca70b4a0 -->
+<g id="edge6" class="edge">
+<title>Node0x5644ca70aeb0:s1&#45;&gt;Node0x5644ca70b4a0</title>
+<path fill="none" stroke="black" d="M920.58,-1168.75C920.58,-1125.87 573.57,-1154 536.33,-1132.75 365.52,-1035.31 258.38,-810.86 219.19,-715.87"/>
+<polygon fill="black" stroke="black" points="222.54,-714.82 215.53,-706.88 216.06,-717.46 222.54,-714.82"/>
+</g>
+<!-- Node0x5644ca70b440 -->
+<g id="node8" class="node">
+<title>Node0x5644ca70b440</title>
+<polygon fill="#be242e" fill-opacity="0.439216" stroke="#3d50c3" points="376.45,-478 376.45,-864.25 1044.2,-864.25 1044.2,-478 376.45,-478"/>
+<text xml:space="preserve" text-anchor="start" x="384.45" y="-846.95" font-family="Courier,monospace" font-size="14.00">if.then2:</text>
+<polyline fill="none" stroke="#3d50c3" points="376.45,-839 1044.2,-839"/>
+<text xml:space="preserve" text-anchor="start" x="384.45" y="-821.7" font-family="Courier,monospace" font-size="14.00">%9 = load i32, ptr %i, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="384.45" y="-804.45" font-family="Courier,monospace" font-size="14.00"> %10 = load ptr, ptr %color.addr, align 8, !nonnull !5, !align !6</text>
+<text xml:space="preserve" text-anchor="start" x="384.45" y="-787.2" font-family="Courier,monospace" font-size="14.00"> %11 = load i32, ptr %node.addr, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="384.45" y="-769.95" font-family="Courier,monospace" font-size="14.00"> %conv = sext i32 %11 to i64</text>
+<text xml:space="preserve" text-anchor="start" x="384.45" y="-752.7" font-family="Courier,monospace" font-size="14.00"> %call3 = call noundef nonnull align 4 dereferenceable(4) ptr</text>
+<text xml:space="preserve" text-anchor="start" x="384.45" y="-735.45" font-family="Courier,monospace" font-size="14.00">... @_ZNSt6vectorIiSaIiEEixEm(ptr noundef nonnull align 8 dereferenceable(24)</text>
+<text xml:space="preserve" text-anchor="start" x="384.45" y="-718.2" font-family="Courier,monospace" font-size="14.00">... %10, i64 noundef %conv) #2</text>
+<text xml:space="preserve" text-anchor="start" x="384.45" y="-700.95" font-family="Courier,monospace" font-size="14.00"> store i32 %9, ptr %call3, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="384.45" y="-683.7" font-family="Courier,monospace" font-size="14.00"> %12 = load i32, ptr %node.addr, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="384.45" y="-666.45" font-family="Courier,monospace" font-size="14.00"> %add = add nsw i32 %12, 1</text>
+<text xml:space="preserve" text-anchor="start" x="384.45" y="-649.2" font-family="Courier,monospace" font-size="14.00"> %13 = load ptr, ptr %color.addr, align 8, !nonnull !5, !align !6</text>
+<text xml:space="preserve" text-anchor="start" x="384.45" y="-631.95" font-family="Courier,monospace" font-size="14.00"> %14 = load i32, ptr %m.addr, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="384.45" y="-614.7" font-family="Courier,monospace" font-size="14.00"> %15 = load i32, ptr %N.addr, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="384.45" y="-597.45" font-family="Courier,monospace" font-size="14.00"> %16 = load ptr, ptr %graph.addr, align 8, !nonnull !5, !align !6</text>
+<text xml:space="preserve" text-anchor="start" x="384.45" y="-580.2" font-family="Courier,monospace" font-size="14.00"> %call4 = call noundef zeroext i1</text>
+<text xml:space="preserve" text-anchor="start" x="384.45" y="-562.95" font-family="Courier,monospace" font-size="14.00">... @_Z5solveiRSt6vectorIiSaIiEEiiRS_IS1_SaIS1_EE(i32 noundef %add, ptr noundef</text>
+<text xml:space="preserve" text-anchor="start" x="384.45" y="-545.7" font-family="Courier,monospace" font-size="14.00">... nonnull align 8 dereferenceable(24) %13, i32 noundef %14, i32 noundef %15,</text>
+<text xml:space="preserve" text-anchor="start" x="384.45" y="-528.45" font-family="Courier,monospace" font-size="14.00">... ptr noundef nonnull align 8 dereferenceable(24) %16)</text>
+<text xml:space="preserve" text-anchor="start" x="384.45" y="-511.2" font-family="Courier,monospace" font-size="14.00"> br i1 %call4, label %if.then5, label %if.end6</text>
+<polyline fill="none" stroke="#3d50c3" points="376.45,-503.25 1044.2,-503.25"/>
+<text xml:space="preserve" text-anchor="middle" x="543.08" y="-485.95" font-family="Courier,monospace" font-size="14.00">T</text>
+<polyline fill="none" stroke="#3d50c3" points="709.7,-478 709.7,-503.25"/>
+<text xml:space="preserve" text-anchor="middle" x="876.83" y="-485.95" font-family="Courier,monospace" font-size="14.00">F</text>
+</g>
+<!-- Node0x5644ca70b220&#45;&gt;Node0x5644ca70b440 -->
+<g id="edge7" class="edge">
+<title>Node0x5644ca70b220:s0&#45;&gt;Node0x5644ca70b440</title>
+<path fill="none" stroke="black" d="M710.2,-900.75C710.2,-892.63 710.2,-884.35 710.2,-875.99"/>
+<polygon fill="black" stroke="black" points="713.7,-876.05 710.2,-866.05 706.7,-876.05 713.7,-876.05"/>
+</g>
+<!-- Node0x5644ca70bad0 -->
+<g id="node9" class="node">
+<title>Node0x5644ca70bad0</title>
+<polygon fill="#b70d28" fill-opacity="0.439216" stroke="#b70d28" points="1066.2,-173.62 1066.2,-224.12 1222.45,-224.12 1222.45,-173.62 1066.2,-173.62"/>
+<text xml:space="preserve" text-anchor="start" x="1074.2" y="-206.82" font-family="Courier,monospace" font-size="14.00">if.end9:</text>
+<polyline fill="none" stroke="#b70d28" points="1066.2,-198.88 1222.45,-198.88"/>
+<text xml:space="preserve" text-anchor="start" x="1074.2" y="-181.57" font-family="Courier,monospace" font-size="14.00">br label %for.inc</text>
+</g>
+<!-- Node0x5644ca70b220&#45;&gt;Node0x5644ca70bad0 -->
+<g id="edge8" class="edge">
+<title>Node0x5644ca70b220:s1&#45;&gt;Node0x5644ca70bad0</title>
+<path fill="none" stroke="black" d="M1206.08,-913.88C1241.89,-913.88 1204.5,-303.28 1193.33,-269.25 1189.16,-256.57 1181.82,-244.19 1174.06,-233.48"/>
+<polygon fill="black" stroke="black" points="1176.99,-231.54 1168.13,-225.73 1171.43,-235.8 1176.99,-231.54"/>
+</g>
+<!-- Node0x5644ca70b4a0&#45;&gt;Node0x5644ca706d30 -->
+<g id="edge15" class="edge">
+<title>Node0x5644ca70b4a0&#45;&gt;Node0x5644ca706d30</title>
+<path fill="none" stroke="black" d="M200.92,-637.06C197.4,-554.36 188.22,-338.48 184.23,-244.58"/>
+<polygon fill="black" stroke="black" points="187.73,-244.57 183.81,-234.73 180.74,-244.87 187.73,-244.57"/>
+</g>
+<!-- Node0x5644ca70ba70 -->
+<g id="node10" class="node">
+<title>Node0x5644ca70ba70</title>
+<polygon fill="#dc5d4a" fill-opacity="0.439216" stroke="#3d50c3" points="209.95,-321.5 209.95,-389.25 514.7,-389.25 514.7,-321.5 209.95,-321.5"/>
+<text xml:space="preserve" text-anchor="start" x="217.95" y="-371.95" font-family="Courier,monospace" font-size="14.00">if.then5:</text>
+<polyline fill="none" stroke="#3d50c3" points="209.95,-364 514.7,-364"/>
+<text xml:space="preserve" text-anchor="start" x="217.95" y="-346.7" font-family="Courier,monospace" font-size="14.00">store i1 true, ptr %retval, align 1</text>
+<text xml:space="preserve" text-anchor="start" x="217.95" y="-329.45" font-family="Courier,monospace" font-size="14.00"> br label %return</text>
+</g>
+<!-- Node0x5644ca70b440&#45;&gt;Node0x5644ca70ba70 -->
+<g id="edge9" class="edge">
+<title>Node0x5644ca70b440:s0&#45;&gt;Node0x5644ca70ba70</title>
+<path fill="none" stroke="black" d="M375.45,-490.62C366.25,-490.62 363.4,-440.06 362.57,-400.99"/>
+<polygon fill="black" stroke="black" points="366.07,-401.01 362.4,-391.07 359.07,-401.13 366.07,-401.01"/>
+</g>
+<!-- Node0x5644ca70caa0 -->
+<g id="node11" class="node">
+<title>Node0x5644ca70caa0</title>
+<polygon fill="#be242e" fill-opacity="0.439216" stroke="#3d50c3" points="532.7,-269.75 532.7,-441 1183.95,-441 1183.95,-269.75 532.7,-269.75"/>
+<text xml:space="preserve" text-anchor="start" x="540.7" y="-423.7" font-family="Courier,monospace" font-size="14.00">if.end6:</text>
+<polyline fill="none" stroke="#3d50c3" points="532.7,-415.75 1183.95,-415.75"/>
+<text xml:space="preserve" text-anchor="start" x="540.7" y="-398.45" font-family="Courier,monospace" font-size="14.00">%17 = load ptr, ptr %color.addr, align 8, !nonnull !5, !align !6</text>
+<text xml:space="preserve" text-anchor="start" x="540.7" y="-381.2" font-family="Courier,monospace" font-size="14.00"> %18 = load i32, ptr %node.addr, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="540.7" y="-363.95" font-family="Courier,monospace" font-size="14.00"> %conv7 = sext i32 %18 to i64</text>
+<text xml:space="preserve" text-anchor="start" x="540.7" y="-346.7" font-family="Courier,monospace" font-size="14.00"> %call8 = call noundef nonnull align 4 dereferenceable(4) ptr</text>
+<text xml:space="preserve" text-anchor="start" x="540.7" y="-329.45" font-family="Courier,monospace" font-size="14.00">... @_ZNSt6vectorIiSaIiEEixEm(ptr noundef nonnull align 8 dereferenceable(24)</text>
+<text xml:space="preserve" text-anchor="start" x="540.7" y="-312.2" font-family="Courier,monospace" font-size="14.00">... %17, i64 noundef %conv7) #2</text>
+<text xml:space="preserve" text-anchor="start" x="540.7" y="-294.95" font-family="Courier,monospace" font-size="14.00"> store i32 0, ptr %call8, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="540.7" y="-277.7" font-family="Courier,monospace" font-size="14.00"> br label %if.end9</text>
+</g>
+<!-- Node0x5644ca70b440&#45;&gt;Node0x5644ca70caa0 -->
+<g id="edge10" class="edge">
+<title>Node0x5644ca70b440:s1&#45;&gt;Node0x5644ca70caa0</title>
+<path fill="none" stroke="black" d="M876.83,-477.5C876.83,-469.46 876.42,-461.15 875.73,-452.82"/>
+<polygon fill="black" stroke="black" points="879.23,-452.61 874.78,-443 872.26,-453.29 879.23,-452.61"/>
+</g>
+<!-- Node0x5644ca70bb50 -->
+<g id="node12" class="node">
+<title>Node0x5644ca70bb50</title>
+<polygon fill="#b70d28" fill-opacity="0.439216" stroke="#b70d28" points="1049.08,-25.75 1049.08,-128 1345.58,-128 1345.58,-25.75 1049.08,-25.75"/>
+<text xml:space="preserve" text-anchor="start" x="1057.08" y="-110.7" font-family="Courier,monospace" font-size="14.00">for.inc:</text>
+<polyline fill="none" stroke="#b70d28" points="1049.08,-102.75 1345.58,-102.75"/>
+<text xml:space="preserve" text-anchor="start" x="1057.08" y="-85.45" font-family="Courier,monospace" font-size="14.00">%19 = load i32, ptr %i, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="1057.08" y="-68.2" font-family="Courier,monospace" font-size="14.00"> %inc = add nsw i32 %19, 1</text>
+<text xml:space="preserve" text-anchor="start" x="1057.08" y="-50.95" font-family="Courier,monospace" font-size="14.00"> store i32 %inc, ptr %i, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="1057.08" y="-33.7" font-family="Courier,monospace" font-size="14.00"> br label %for.cond, !llvm.loop !9</text>
+</g>
+<!-- Node0x5644ca70bad0&#45;&gt;Node0x5644ca70bb50 -->
+<g id="edge13" class="edge">
+<title>Node0x5644ca70bad0&#45;&gt;Node0x5644ca70bb50</title>
+<path fill="none" stroke="black" d="M1155.18,-173.3C1159.67,-163.12 1165.11,-150.83 1170.55,-138.49"/>
+<polygon fill="black" stroke="black" points="1173.66,-140.12 1174.5,-129.56 1167.26,-137.29 1173.66,-140.12"/>
+</g>
+<!-- Node0x5644ca70ba70&#45;&gt;Node0x5644ca706d30 -->
+<g id="edge11" class="edge">
+<title>Node0x5644ca70ba70&#45;&gt;Node0x5644ca706d30</title>
+<path fill="none" stroke="black" d="M323.71,-321.23C296.16,-297.59 258.96,-265.65 229.63,-240.47"/>
+<polygon fill="black" stroke="black" points="232.2,-238.07 222.33,-234.22 227.64,-243.39 232.2,-238.07"/>
+</g>
+<!-- Node0x5644ca70caa0&#45;&gt;Node0x5644ca70bad0 -->
+<g id="edge12" class="edge">
+<title>Node0x5644ca70caa0&#45;&gt;Node0x5644ca70bad0</title>
+<path fill="none" stroke="black" d="M1015.55,-269.44C1041.65,-255.34 1067.11,-241.59 1088.41,-230.08"/>
+<polygon fill="black" stroke="black" points="1090.05,-233.17 1097.19,-225.34 1086.73,-227.01 1090.05,-233.17"/>
+</g>
+<!-- Node0x5644ca70bb50&#45;&gt;Node0x5644ca70aeb0 -->
+<g id="edge14" class="edge">
+<title>Node0x5644ca70bb50&#45;&gt;Node0x5644ca70aeb0</title>
+<path fill="none" stroke="black" d="M1219.84,-128.43C1224.28,-140.08 1228.44,-152.56 1231.33,-164.5 1251.23,-246.94 1250.33,-269.56 1250.33,-354.38 1250.33,-672.12 1250.33,-672.12 1250.33,-672.12 1250.33,-877.47 1346.58,-975.67 1214.33,-1132.75 1188.84,-1163.02 1109.53,-1185.94 1029.03,-1202.08"/>
+<polygon fill="black" stroke="black" points="1028.81,-1198.56 1019.67,-1203.92 1030.16,-1205.43 1028.81,-1198.56"/>
+</g>
+</g>
+</svg></div>
+        </div>
+        <div class="exhibit-col">
+          <p class="col-label"><span class="n">5</span> blocks &middot; stage A</p>
+          <div class="diagram-frame"><svg width="1463pt" height="1020pt"
+ viewBox="0.00 0.00 1463.00 1020.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 1016)">
+<title>CFG for &#39;_Z5solveiRSt6vectorIiSaIiEEiiRS_IS1_SaIS1_EE&#39; function</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-1016 1459.38,-1016 1459.38,4 -4,4"/>
+<text xml:space="preserve" text-anchor="middle" x="727.69" y="-7.95" font-family="Times,serif" font-size="14.00">CFG for &#39;_Z5solveiRSt6vectorIiSaIiEEiiRS_IS1_SaIS1_EE&#39; function</text>
+<!-- Node0x55ffc457b440 -->
+<g id="node1" class="node">
+<title>Node0x55ffc457b440</title>
+<polygon fill="#cc403a" fill-opacity="0.439216" stroke="#3d50c3" points="230.88,-918.5 230.88,-1011.5 601.62,-1011.5 601.62,-918.5 230.88,-918.5"/>
+<text xml:space="preserve" text-anchor="start" x="238.88" y="-994.2" font-family="Courier,monospace" font-size="14.00">entry:</text>
+<polyline fill="none" stroke="#3d50c3" points="230.88,-986.25 601.62,-986.25"/>
+<text xml:space="preserve" text-anchor="start" x="238.88" y="-968.95" font-family="Courier,monospace" font-size="14.00">%cmp = icmp eq i32 %node, %N</text>
+<text xml:space="preserve" text-anchor="start" x="238.88" y="-951.7" font-family="Courier,monospace" font-size="14.00"> br i1 %cmp, label %return, label %for.cond</text>
+<polyline fill="none" stroke="#3d50c3" points="230.88,-943.75 601.62,-943.75"/>
+<text xml:space="preserve" text-anchor="middle" x="323.5" y="-926.45" font-family="Courier,monospace" font-size="14.00">T</text>
+<polyline fill="none" stroke="#3d50c3" points="416.12,-918.5 416.12,-943.75"/>
+<text xml:space="preserve" text-anchor="middle" x="508.75" y="-926.45" font-family="Courier,monospace" font-size="14.00">F</text>
+</g>
+<!-- Node0x55ffc457ac80 -->
+<g id="node2" class="node">
+<title>Node0x55ffc457ac80</title>
+<polygon fill="#cc403a" fill-opacity="0.439216" stroke="#3d50c3" points="0,-156.38 0,-241.38 560.5,-241.38 560.5,-156.38 0,-156.38"/>
+<text xml:space="preserve" text-anchor="start" x="8" y="-224.07" font-family="Courier,monospace" font-size="14.00">return:</text>
+<polyline fill="none" stroke="#3d50c3" points="0,-216.12 560.5,-216.12"/>
+<text xml:space="preserve" text-anchor="start" x="8" y="-198.82" font-family="Courier,monospace" font-size="14.00">%retval.0 = phi i1 [ true, %if.then2 ], [ true, %entry ], [ false,</text>
+<text xml:space="preserve" text-anchor="start" x="8" y="-181.57" font-family="Courier,monospace" font-size="14.00">... %for.cond ]</text>
+<text xml:space="preserve" text-anchor="start" x="8" y="-164.32" font-family="Courier,monospace" font-size="14.00"> ret i1 %retval.0</text>
+</g>
+<!-- Node0x55ffc457b440&#45;&gt;Node0x55ffc457ac80 -->
+<g id="edge1" class="edge">
+<title>Node0x55ffc457b440:s0&#45;&gt;Node0x55ffc457ac80</title>
+<path fill="none" stroke="black" d="M323.5,-918C323.5,-668.69 297.21,-371.58 285.62,-252.78"/>
+<polygon fill="black" stroke="black" points="289.12,-252.63 284.66,-243.02 282.16,-253.31 289.12,-252.63"/>
+</g>
+<!-- Node0x55ffc457c9d0 -->
+<g id="node3" class="node">
+<title>Node0x55ffc457c9d0</title>
+<polygon fill="#b70d28" fill-opacity="0.439216" stroke="#b70d28" points="356.25,-771.25 356.25,-881.5 768.25,-881.5 768.25,-771.25 356.25,-771.25"/>
+<text xml:space="preserve" text-anchor="start" x="364.25" y="-864.2" font-family="Courier,monospace" font-size="14.00">for.cond:</text>
+<polyline fill="none" stroke="#b70d28" points="356.25,-856.25 768.25,-856.25"/>
+<text xml:space="preserve" text-anchor="start" x="364.25" y="-838.95" font-family="Courier,monospace" font-size="14.00">%i.0 = phi i32 [ %inc, %for.inc ], [ 1, %entry ]</text>
+<text xml:space="preserve" text-anchor="start" x="364.25" y="-821.7" font-family="Courier,monospace" font-size="14.00"> %cmp1.not = icmp sgt i32 %i.0, %m</text>
+<text xml:space="preserve" text-anchor="start" x="364.25" y="-804.45" font-family="Courier,monospace" font-size="14.00"> br i1 %cmp1.not, label %return, label %for.body</text>
+<polyline fill="none" stroke="#b70d28" points="356.25,-796.5 768.25,-796.5"/>
+<text xml:space="preserve" text-anchor="middle" x="458.88" y="-779.2" font-family="Courier,monospace" font-size="14.00">T</text>
+<polyline fill="none" stroke="#b70d28" points="561.5,-771.25 561.5,-796.5"/>
+<text xml:space="preserve" text-anchor="middle" x="664.62" y="-779.2" font-family="Courier,monospace" font-size="14.00">F</text>
+</g>
+<!-- Node0x55ffc457b440&#45;&gt;Node0x55ffc457c9d0 -->
+<g id="edge2" class="edge">
+<title>Node0x55ffc457b440:s1&#45;&gt;Node0x55ffc457c9d0</title>
+<path fill="none" stroke="black" d="M508.75,-918C508.75,-909.14 510.67,-900.38 513.79,-892"/>
+<polygon fill="black" stroke="black" points="516.92,-893.57 517.71,-883.01 510.5,-890.77 516.92,-893.57"/>
+</g>
+<!-- Node0x55ffc457c9d0&#45;&gt;Node0x55ffc457ac80 -->
+<g id="edge3" class="edge">
+<title>Node0x55ffc457c9d0:s0&#45;&gt;Node0x55ffc457ac80</title>
+<path fill="none" stroke="black" d="M458.88,-770.75C458.88,-571.41 358.44,-350.04 308.19,-251.76"/>
+<polygon fill="black" stroke="black" points="311.44,-250.42 303.75,-243.13 305.22,-253.63 311.44,-250.42"/>
+</g>
+<!-- Node0x55ffc457db40 -->
+<g id="node4" class="node">
+<title>Node0x55ffc457db40</title>
+<polygon fill="#b70d28" fill-opacity="0.439216" stroke="#b70d28" points="771.12,-589.5 771.12,-734.25 1455.38,-734.25 1455.38,-589.5 771.12,-589.5"/>
+<text xml:space="preserve" text-anchor="start" x="779.12" y="-716.95" font-family="Courier,monospace" font-size="14.00">for.body:</text>
+<polyline fill="none" stroke="#b70d28" points="771.12,-709 1455.38,-709"/>
+<text xml:space="preserve" text-anchor="start" x="779.12" y="-691.7" font-family="Courier,monospace" font-size="14.00">%call = call noundef zeroext i1</text>
+<text xml:space="preserve" text-anchor="start" x="779.12" y="-674.45" font-family="Courier,monospace" font-size="14.00">... @_Z6isSafeiRSt6vectorIiSaIiEERS_IS1_SaIS1_EEii(i32 noundef %node, ptr noundef</text>
+<text xml:space="preserve" text-anchor="start" x="779.12" y="-657.2" font-family="Courier,monospace" font-size="14.00">... nonnull align 8 dereferenceable(24) %color, ptr noundef nonnull align 8</text>
+<text xml:space="preserve" text-anchor="start" x="779.12" y="-639.95" font-family="Courier,monospace" font-size="14.00">... dereferenceable(24) %graph, i32 noundef %N, i32 noundef %i.0)</text>
+<text xml:space="preserve" text-anchor="start" x="779.12" y="-622.7" font-family="Courier,monospace" font-size="14.00"> br i1 %call, label %if.then2, label %for.inc</text>
+<polyline fill="none" stroke="#b70d28" points="771.12,-614.75 1455.38,-614.75"/>
+<text xml:space="preserve" text-anchor="middle" x="941.75" y="-597.45" font-family="Courier,monospace" font-size="14.00">T</text>
+<polyline fill="none" stroke="#b70d28" points="1112.38,-589.5 1112.38,-614.75"/>
+<text xml:space="preserve" text-anchor="middle" x="1283.5" y="-597.45" font-family="Courier,monospace" font-size="14.00">F</text>
+</g>
+<!-- Node0x55ffc457c9d0&#45;&gt;Node0x55ffc457db40 -->
+<g id="edge4" class="edge">
+<title>Node0x55ffc457c9d0:s1&#45;&gt;Node0x55ffc457db40</title>
+<path fill="none" stroke="black" d="M768.75,-783.88C835.73,-783.88 906.1,-763.26 965.66,-739.06"/>
+<polygon fill="black" stroke="black" points="966.97,-742.3 974.87,-735.24 964.29,-735.83 966.97,-742.3"/>
+</g>
+<!-- Node0x55ffc457dd70 -->
+<g id="node5" class="node">
+<title>Node0x55ffc457dd70</title>
+<polygon fill="#be242e" fill-opacity="0.439216" stroke="#3d50c3" points="608.38,-304.25 608.38,-552.5 1276.12,-552.5 1276.12,-304.25 608.38,-304.25"/>
+<text xml:space="preserve" text-anchor="start" x="616.38" y="-535.2" font-family="Courier,monospace" font-size="14.00">if.then2:</text>
+<polyline fill="none" stroke="#3d50c3" points="608.38,-527.25 1276.12,-527.25"/>
+<text xml:space="preserve" text-anchor="start" x="616.38" y="-509.95" font-family="Courier,monospace" font-size="14.00">%conv = sext i32 %node to i64</text>
+<text xml:space="preserve" text-anchor="start" x="616.38" y="-492.7" font-family="Courier,monospace" font-size="14.00"> %call3 = call noundef nonnull align 4 dereferenceable(4) ptr</text>
+<text xml:space="preserve" text-anchor="start" x="616.38" y="-475.45" font-family="Courier,monospace" font-size="14.00">... @_ZNSt6vectorIiSaIiEEixEm(ptr noundef nonnull align 8 dereferenceable(24)</text>
+<text xml:space="preserve" text-anchor="start" x="616.38" y="-458.2" font-family="Courier,monospace" font-size="14.00">... %color, i64 noundef %conv) #2</text>
+<text xml:space="preserve" text-anchor="start" x="616.38" y="-440.95" font-family="Courier,monospace" font-size="14.00"> store i32 %i.0, ptr %call3, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="616.38" y="-423.7" font-family="Courier,monospace" font-size="14.00"> %add = add nsw i32 %node, 1</text>
+<text xml:space="preserve" text-anchor="start" x="616.38" y="-406.45" font-family="Courier,monospace" font-size="14.00"> %call4 = call noundef zeroext i1</text>
+<text xml:space="preserve" text-anchor="start" x="616.38" y="-389.2" font-family="Courier,monospace" font-size="14.00">... @_Z5solveiRSt6vectorIiSaIiEEiiRS_IS1_SaIS1_EE(i32 noundef %add, ptr noundef</text>
+<text xml:space="preserve" text-anchor="start" x="616.38" y="-371.95" font-family="Courier,monospace" font-size="14.00">... nonnull align 8 dereferenceable(24) %color, i32 noundef %m, i32 noundef %N,</text>
+<text xml:space="preserve" text-anchor="start" x="616.38" y="-354.7" font-family="Courier,monospace" font-size="14.00">... ptr noundef nonnull align 8 dereferenceable(24) %graph)</text>
+<text xml:space="preserve" text-anchor="start" x="616.38" y="-337.45" font-family="Courier,monospace" font-size="14.00"> br i1 %call4, label %return, label %if.end6</text>
+<polyline fill="none" stroke="#3d50c3" points="608.38,-329.5 1276.12,-329.5"/>
+<text xml:space="preserve" text-anchor="middle" x="775" y="-312.2" font-family="Courier,monospace" font-size="14.00">T</text>
+<polyline fill="none" stroke="#3d50c3" points="941.62,-304.25 941.62,-329.5"/>
+<text xml:space="preserve" text-anchor="middle" x="1108.75" y="-312.2" font-family="Courier,monospace" font-size="14.00">F</text>
+</g>
+<!-- Node0x55ffc457db40&#45;&gt;Node0x55ffc457dd70 -->
+<g id="edge5" class="edge">
+<title>Node0x55ffc457db40:s0&#45;&gt;Node0x55ffc457dd70</title>
+<path fill="none" stroke="black" d="M941.75,-589C941.75,-580.9 941.76,-572.57 941.77,-564.17"/>
+<polygon fill="black" stroke="black" points="945.27,-564.21 941.78,-554.2 938.27,-564.19 945.27,-564.21"/>
+</g>
+<!-- Node0x55ffc457d950 -->
+<g id="node6" class="node">
+<title>Node0x55ffc457d950</title>
+<polygon fill="#b70d28" fill-opacity="0.439216" stroke="#b70d28" points="802,-25.75 802,-93.5 1098.5,-93.5 1098.5,-25.75 802,-25.75"/>
+<text xml:space="preserve" text-anchor="start" x="810" y="-76.2" font-family="Courier,monospace" font-size="14.00">for.inc:</text>
+<polyline fill="none" stroke="#b70d28" points="802,-68.25 1098.5,-68.25"/>
+<text xml:space="preserve" text-anchor="start" x="810" y="-50.95" font-family="Courier,monospace" font-size="14.00">%inc = add nuw nsw i32 %i.0, 1</text>
+<text xml:space="preserve" text-anchor="start" x="810" y="-33.7" font-family="Courier,monospace" font-size="14.00"> br label %for.cond, !llvm.loop !7</text>
+</g>
+<!-- Node0x55ffc457db40&#45;&gt;Node0x55ffc457d950 -->
+<g id="edge6" class="edge">
+<title>Node0x55ffc457db40:s1&#45;&gt;Node0x55ffc457d950</title>
+<path fill="none" stroke="black" d="M1283.5,-589C1283.5,-487 1349.65,-209.1 1285.25,-130 1262.29,-101.79 1184.62,-84.7 1109.84,-74.54"/>
+<polygon fill="black" stroke="black" points="1110.71,-71.12 1100.34,-73.28 1109.8,-78.06 1110.71,-71.12"/>
+</g>
+<!-- Node0x55ffc457dd70&#45;&gt;Node0x55ffc457ac80 -->
+<g id="edge7" class="edge">
+<title>Node0x55ffc457dd70:s0&#45;&gt;Node0x55ffc457ac80</title>
+<path fill="none" stroke="black" d="M607.38,-316.88C520.06,-316.88 426.9,-279.47 362.42,-246.95"/>
+<polygon fill="black" stroke="black" points="364.16,-243.92 353.67,-242.47 360.97,-250.15 364.16,-243.92"/>
+</g>
+<!-- Node0x55ffc457e040 -->
+<g id="node7" class="node">
+<title>Node0x55ffc457e040</title>
+<polygon fill="#be242e" fill-opacity="0.439216" stroke="#3d50c3" points="624.62,-130.5 624.62,-267.25 1275.88,-267.25 1275.88,-130.5 624.62,-130.5"/>
+<text xml:space="preserve" text-anchor="start" x="632.62" y="-249.95" font-family="Courier,monospace" font-size="14.00">if.end6:</text>
+<polyline fill="none" stroke="#3d50c3" points="624.62,-242 1275.88,-242"/>
+<text xml:space="preserve" text-anchor="start" x="632.62" y="-224.7" font-family="Courier,monospace" font-size="14.00">%conv7 = sext i32 %node to i64</text>
+<text xml:space="preserve" text-anchor="start" x="632.62" y="-207.45" font-family="Courier,monospace" font-size="14.00"> %call8 = call noundef nonnull align 4 dereferenceable(4) ptr</text>
+<text xml:space="preserve" text-anchor="start" x="632.62" y="-190.2" font-family="Courier,monospace" font-size="14.00">... @_ZNSt6vectorIiSaIiEEixEm(ptr noundef nonnull align 8 dereferenceable(24)</text>
+<text xml:space="preserve" text-anchor="start" x="632.62" y="-172.95" font-family="Courier,monospace" font-size="14.00">... %color, i64 noundef %conv7) #2</text>
+<text xml:space="preserve" text-anchor="start" x="632.62" y="-155.7" font-family="Courier,monospace" font-size="14.00"> store i32 0, ptr %call8, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="632.62" y="-138.45" font-family="Courier,monospace" font-size="14.00"> br label %for.inc</text>
+</g>
+<!-- Node0x55ffc457dd70&#45;&gt;Node0x55ffc457e040 -->
+<g id="edge8" class="edge">
+<title>Node0x55ffc457dd70:s1&#45;&gt;Node0x55ffc457e040</title>
+<path fill="none" stroke="black" d="M1108.75,-303.75C1108.75,-294.26 1106.74,-285.58 1103.16,-277.67"/>
+<polygon fill="black" stroke="black" points="1106.27,-276.04 1098.34,-269.01 1100.15,-279.45 1106.27,-276.04"/>
+</g>
+<!-- Node0x55ffc457d950&#45;&gt;Node0x55ffc457c9d0 -->
+<g id="edge10" class="edge">
+<title>Node0x55ffc457d950&#45;&gt;Node0x55ffc457c9d0</title>
+<path fill="none" stroke="black" d="M801.75,-74.05C724.33,-84.31 640.58,-101.65 615.25,-130 573.87,-176.32 564.77,-595.16 562.79,-759.57"/>
+<polygon fill="black" stroke="black" points="559.3,-759.4 562.68,-769.44 566.3,-759.48 559.3,-759.4"/>
+</g>
+<!-- Node0x55ffc457e040&#45;&gt;Node0x55ffc457d950 -->
+<g id="edge9" class="edge">
+<title>Node0x55ffc457e040&#45;&gt;Node0x55ffc457d950</title>
+<path fill="none" stroke="black" d="M950.25,-130.05C950.25,-121.61 950.25,-113.16 950.25,-105.2"/>
+<polygon fill="black" stroke="black" points="953.75,-105.46 950.25,-95.46 946.75,-105.46 953.75,-105.46"/>
+</g>
+</g>
+</svg></div>
+        </div>
+      </div>
+      <div class="exhibit-foot">The recursive core. Note the single self-call edge inside <code>if.then2</code>, and the 3-way terminal phi in <code>return</code> &mdash; both survive intact from raw to canonicalized.</div>
+    </div>
+
+    <div class="exhibit">
+      <div class="exhibit-head">
+        <h3>solve() &middot; stage B, for comparison</h3>
+        <span class="sym">+ loop-simplify, lcssa, indvars</span>
+      </div>
+      <div class="exhibit-body single">
+        <div class="exhibit-col">
+          <p class="col-label">extra <code>if.end</code> block appears &middot; only change from stage A</p>
+          <div class="diagram-frame"><svg width="1463pt" height="1142pt"
+ viewBox="0.00 0.00 1463.00 1142.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 1138)">
+<title>CFG for &#39;_Z5solveiRSt6vectorIiSaIiEEiiRS_IS1_SaIS1_EE&#39; function</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-1138 1459.38,-1138 1459.38,4 -4,4"/>
+<text xml:space="preserve" text-anchor="middle" x="727.69" y="-7.95" font-family="Times,serif" font-size="14.00">CFG for &#39;_Z5solveiRSt6vectorIiSaIiEEiiRS_IS1_SaIS1_EE&#39; function</text>
+<!-- Node0x558fbd59df90 -->
+<g id="node1" class="node">
+<title>Node0x558fbd59df90</title>
+<polygon fill="#cc403a" fill-opacity="0.439216" stroke="#3d50c3" points="232.12,-1040.5 232.12,-1133.5 586.38,-1133.5 586.38,-1040.5 232.12,-1040.5"/>
+<text xml:space="preserve" text-anchor="start" x="240.12" y="-1116.2" font-family="Courier,monospace" font-size="14.00">entry:</text>
+<polyline fill="none" stroke="#3d50c3" points="232.12,-1108.25 586.38,-1108.25"/>
+<text xml:space="preserve" text-anchor="start" x="240.12" y="-1090.95" font-family="Courier,monospace" font-size="14.00">%cmp = icmp eq i32 %node, %N</text>
+<text xml:space="preserve" text-anchor="start" x="240.12" y="-1073.7" font-family="Courier,monospace" font-size="14.00"> br i1 %cmp, label %return, label %if.end</text>
+<polyline fill="none" stroke="#3d50c3" points="232.12,-1065.75 586.38,-1065.75"/>
+<text xml:space="preserve" text-anchor="middle" x="320.25" y="-1048.45" font-family="Courier,monospace" font-size="14.00">T</text>
+<polyline fill="none" stroke="#3d50c3" points="408.38,-1040.5 408.38,-1065.75"/>
+<text xml:space="preserve" text-anchor="middle" x="497" y="-1048.45" font-family="Courier,monospace" font-size="14.00">F</text>
+</g>
+<!-- Node0x558fbd59d980 -->
+<g id="node2" class="node">
+<title>Node0x558fbd59d980</title>
+<polygon fill="#cc403a" fill-opacity="0.439216" stroke="#3d50c3" points="0,-156.38 0,-241.38 560.5,-241.38 560.5,-156.38 0,-156.38"/>
+<text xml:space="preserve" text-anchor="start" x="8" y="-224.07" font-family="Courier,monospace" font-size="14.00">return:</text>
+<polyline fill="none" stroke="#3d50c3" points="0,-216.12 560.5,-216.12"/>
+<text xml:space="preserve" text-anchor="start" x="8" y="-198.82" font-family="Courier,monospace" font-size="14.00">%retval.0 = phi i1 [ true, %if.then2 ], [ true, %entry ], [ false,</text>
+<text xml:space="preserve" text-anchor="start" x="8" y="-181.57" font-family="Courier,monospace" font-size="14.00">... %for.cond ]</text>
+<text xml:space="preserve" text-anchor="start" x="8" y="-164.32" font-family="Courier,monospace" font-size="14.00"> ret i1 %retval.0</text>
+</g>
+<!-- Node0x558fbd59df90&#45;&gt;Node0x558fbd59d980 -->
+<g id="edge1" class="edge">
+<title>Node0x558fbd59df90:s0&#45;&gt;Node0x558fbd59d980</title>
+<path fill="none" stroke="black" d="M320.25,-1040C320.25,-944.85 295.25,-922.53 295.25,-827.38 295.25,-827.38 295.25,-827.38 295.25,-660.88 295.25,-513.12 287.46,-338.86 283.11,-253.07"/>
+<polygon fill="black" stroke="black" points="286.61,-253.13 282.61,-243.32 279.62,-253.49 286.61,-253.13"/>
+</g>
+<!-- Node0x558fbd59ef30 -->
+<g id="node3" class="node">
+<title>Node0x558fbd59ef30</title>
+<polygon fill="#d24b40" fill-opacity="0.439216" stroke="#3d50c3" points="335.5,-918.5 335.5,-1003.5 731,-1003.5 731,-918.5 335.5,-918.5"/>
+<text xml:space="preserve" text-anchor="start" x="343.5" y="-986.2" font-family="Courier,monospace" font-size="14.00">if.end:</text>
+<polyline fill="none" stroke="#3d50c3" points="335.5,-978.25 731,-978.25"/>
+<text xml:space="preserve" text-anchor="start" x="343.5" y="-960.95" font-family="Courier,monospace" font-size="14.00">%smax = call i32 @llvm.smax.i32(i32 %m, i32 0)</text>
+<text xml:space="preserve" text-anchor="start" x="343.5" y="-943.7" font-family="Courier,monospace" font-size="14.00"> %0 = add nuw i32 %smax, 1</text>
+<text xml:space="preserve" text-anchor="start" x="343.5" y="-926.45" font-family="Courier,monospace" font-size="14.00"> br label %for.cond</text>
+</g>
+<!-- Node0x558fbd59df90&#45;&gt;Node0x558fbd59ef30 -->
+<g id="edge2" class="edge">
+<title>Node0x558fbd59df90:s1&#45;&gt;Node0x558fbd59ef30</title>
+<path fill="none" stroke="black" d="M497,-1040C497,-1031.38 498.84,-1022.69 501.7,-1014.38"/>
+<polygon fill="black" stroke="black" points="504.93,-1015.73 505.4,-1005.14 498.43,-1013.13 504.93,-1015.73"/>
+</g>
+<!-- Node0x558fbd59fd10 -->
+<g id="node4" class="node">
+<title>Node0x558fbd59fd10</title>
+<polygon fill="#b70d28" fill-opacity="0.439216" stroke="#b70d28" points="343.75,-771.25 343.75,-881.5 788.75,-881.5 788.75,-771.25 343.75,-771.25"/>
+<text xml:space="preserve" text-anchor="start" x="351.75" y="-864.2" font-family="Courier,monospace" font-size="14.00">for.cond:</text>
+<polyline fill="none" stroke="#b70d28" points="343.75,-856.25 788.75,-856.25"/>
+<text xml:space="preserve" text-anchor="start" x="351.75" y="-838.95" font-family="Courier,monospace" font-size="14.00">%i.0 = phi i32 [ 1, %if.end ], [ %inc, %for.inc ]</text>
+<text xml:space="preserve" text-anchor="start" x="351.75" y="-821.7" font-family="Courier,monospace" font-size="14.00"> %exitcond.not = icmp eq i32 %i.0, %0</text>
+<text xml:space="preserve" text-anchor="start" x="351.75" y="-804.45" font-family="Courier,monospace" font-size="14.00"> br i1 %exitcond.not, label %return, label %for.body</text>
+<polyline fill="none" stroke="#b70d28" points="343.75,-796.5 788.75,-796.5"/>
+<text xml:space="preserve" text-anchor="middle" x="454.88" y="-779.2" font-family="Courier,monospace" font-size="14.00">T</text>
+<polyline fill="none" stroke="#b70d28" points="566,-771.25 566,-796.5"/>
+<text xml:space="preserve" text-anchor="middle" x="677.12" y="-779.2" font-family="Courier,monospace" font-size="14.00">F</text>
+</g>
+<!-- Node0x558fbd59ef30&#45;&gt;Node0x558fbd59fd10 -->
+<g id="edge3" class="edge">
+<title>Node0x558fbd59ef30&#45;&gt;Node0x558fbd59fd10</title>
+<path fill="none" stroke="black" d="M543.69,-918.04C545.71,-909.93 547.87,-901.25 550.02,-892.6"/>
+<polygon fill="black" stroke="black" points="553.35,-893.72 552.37,-883.17 546.56,-892.03 553.35,-893.72"/>
+</g>
+<!-- Node0x558fbd59fd10&#45;&gt;Node0x558fbd59d980 -->
+<g id="edge4" class="edge">
+<title>Node0x558fbd59fd10:s0&#45;&gt;Node0x558fbd59d980</title>
+<path fill="none" stroke="black" d="M454.88,-770.75C454.88,-572 356.89,-350.68 307.72,-252.13"/>
+<polygon fill="black" stroke="black" points="310.85,-250.56 303.22,-243.2 304.59,-253.71 310.85,-250.56"/>
+</g>
+<!-- Node0x558fbd5a0450 -->
+<g id="node5" class="node">
+<title>Node0x558fbd5a0450</title>
+<polygon fill="#b70d28" fill-opacity="0.439216" stroke="#b70d28" points="771.12,-589.5 771.12,-734.25 1455.38,-734.25 1455.38,-589.5 771.12,-589.5"/>
+<text xml:space="preserve" text-anchor="start" x="779.12" y="-716.95" font-family="Courier,monospace" font-size="14.00">for.body:</text>
+<polyline fill="none" stroke="#b70d28" points="771.12,-709 1455.38,-709"/>
+<text xml:space="preserve" text-anchor="start" x="779.12" y="-691.7" font-family="Courier,monospace" font-size="14.00">%call = call noundef zeroext i1</text>
+<text xml:space="preserve" text-anchor="start" x="779.12" y="-674.45" font-family="Courier,monospace" font-size="14.00">... @_Z6isSafeiRSt6vectorIiSaIiEERS_IS1_SaIS1_EEii(i32 noundef %node, ptr noundef</text>
+<text xml:space="preserve" text-anchor="start" x="779.12" y="-657.2" font-family="Courier,monospace" font-size="14.00">... nonnull align 8 dereferenceable(24) %color, ptr noundef nonnull align 8</text>
+<text xml:space="preserve" text-anchor="start" x="779.12" y="-639.95" font-family="Courier,monospace" font-size="14.00">... dereferenceable(24) %graph, i32 noundef %N, i32 noundef %i.0)</text>
+<text xml:space="preserve" text-anchor="start" x="779.12" y="-622.7" font-family="Courier,monospace" font-size="14.00"> br i1 %call, label %if.then2, label %for.inc</text>
+<polyline fill="none" stroke="#b70d28" points="771.12,-614.75 1455.38,-614.75"/>
+<text xml:space="preserve" text-anchor="middle" x="941.75" y="-597.45" font-family="Courier,monospace" font-size="14.00">T</text>
+<polyline fill="none" stroke="#b70d28" points="1112.38,-589.5 1112.38,-614.75"/>
+<text xml:space="preserve" text-anchor="middle" x="1283.5" y="-597.45" font-family="Courier,monospace" font-size="14.00">F</text>
+</g>
+<!-- Node0x558fbd59fd10&#45;&gt;Node0x558fbd5a0450 -->
+<g id="edge5" class="edge">
+<title>Node0x558fbd59fd10:s1&#45;&gt;Node0x558fbd5a0450</title>
+<path fill="none" stroke="black" d="M789.25,-783.88C852.56,-783.88 918.68,-763.35 974.56,-739.21"/>
+<polygon fill="black" stroke="black" points="975.75,-742.51 983.48,-735.27 972.92,-736.1 975.75,-742.51"/>
+</g>
+<!-- Node0x558fbd5a04e0 -->
+<g id="node6" class="node">
+<title>Node0x558fbd5a04e0</title>
+<polygon fill="#be242e" fill-opacity="0.439216" stroke="#3d50c3" points="608.38,-304.25 608.38,-552.5 1276.12,-552.5 1276.12,-304.25 608.38,-304.25"/>
+<text xml:space="preserve" text-anchor="start" x="616.38" y="-535.2" font-family="Courier,monospace" font-size="14.00">if.then2:</text>
+<polyline fill="none" stroke="#3d50c3" points="608.38,-527.25 1276.12,-527.25"/>
+<text xml:space="preserve" text-anchor="start" x="616.38" y="-509.95" font-family="Courier,monospace" font-size="14.00">%conv = sext i32 %node to i64</text>
+<text xml:space="preserve" text-anchor="start" x="616.38" y="-492.7" font-family="Courier,monospace" font-size="14.00"> %call3 = call noundef nonnull align 4 dereferenceable(4) ptr</text>
+<text xml:space="preserve" text-anchor="start" x="616.38" y="-475.45" font-family="Courier,monospace" font-size="14.00">... @_ZNSt6vectorIiSaIiEEixEm(ptr noundef nonnull align 8 dereferenceable(24)</text>
+<text xml:space="preserve" text-anchor="start" x="616.38" y="-458.2" font-family="Courier,monospace" font-size="14.00">... %color, i64 noundef %conv) #3</text>
+<text xml:space="preserve" text-anchor="start" x="616.38" y="-440.95" font-family="Courier,monospace" font-size="14.00"> store i32 %i.0, ptr %call3, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="616.38" y="-423.7" font-family="Courier,monospace" font-size="14.00"> %add = add nsw i32 %node, 1</text>
+<text xml:space="preserve" text-anchor="start" x="616.38" y="-406.45" font-family="Courier,monospace" font-size="14.00"> %call4 = call noundef zeroext i1</text>
+<text xml:space="preserve" text-anchor="start" x="616.38" y="-389.2" font-family="Courier,monospace" font-size="14.00">... @_Z5solveiRSt6vectorIiSaIiEEiiRS_IS1_SaIS1_EE(i32 noundef %add, ptr noundef</text>
+<text xml:space="preserve" text-anchor="start" x="616.38" y="-371.95" font-family="Courier,monospace" font-size="14.00">... nonnull align 8 dereferenceable(24) %color, i32 noundef %m, i32 noundef %N,</text>
+<text xml:space="preserve" text-anchor="start" x="616.38" y="-354.7" font-family="Courier,monospace" font-size="14.00">... ptr noundef nonnull align 8 dereferenceable(24) %graph)</text>
+<text xml:space="preserve" text-anchor="start" x="616.38" y="-337.45" font-family="Courier,monospace" font-size="14.00"> br i1 %call4, label %return, label %if.end6</text>
+<polyline fill="none" stroke="#3d50c3" points="608.38,-329.5 1276.12,-329.5"/>
+<text xml:space="preserve" text-anchor="middle" x="775" y="-312.2" font-family="Courier,monospace" font-size="14.00">T</text>
+<polyline fill="none" stroke="#3d50c3" points="941.62,-304.25 941.62,-329.5"/>
+<text xml:space="preserve" text-anchor="middle" x="1108.75" y="-312.2" font-family="Courier,monospace" font-size="14.00">F</text>
+</g>
+<!-- Node0x558fbd5a0450&#45;&gt;Node0x558fbd5a04e0 -->
+<g id="edge6" class="edge">
+<title>Node0x558fbd5a0450:s0&#45;&gt;Node0x558fbd5a04e0</title>
+<path fill="none" stroke="black" d="M941.75,-589C941.75,-580.9 941.76,-572.57 941.77,-564.17"/>
+<polygon fill="black" stroke="black" points="945.27,-564.21 941.78,-554.2 938.27,-564.19 945.27,-564.21"/>
+</g>
+<!-- Node0x558fbd5a0030 -->
+<g id="node7" class="node">
+<title>Node0x558fbd5a0030</title>
+<polygon fill="#b70d28" fill-opacity="0.439216" stroke="#b70d28" points="802,-25.75 802,-93.5 1098.5,-93.5 1098.5,-25.75 802,-25.75"/>
+<text xml:space="preserve" text-anchor="start" x="810" y="-76.2" font-family="Courier,monospace" font-size="14.00">for.inc:</text>
+<polyline fill="none" stroke="#b70d28" points="802,-68.25 1098.5,-68.25"/>
+<text xml:space="preserve" text-anchor="start" x="810" y="-50.95" font-family="Courier,monospace" font-size="14.00">%inc = add nuw i32 %i.0, 1</text>
+<text xml:space="preserve" text-anchor="start" x="810" y="-33.7" font-family="Courier,monospace" font-size="14.00"> br label %for.cond, !llvm.loop !7</text>
+</g>
+<!-- Node0x558fbd5a0450&#45;&gt;Node0x558fbd5a0030 -->
+<g id="edge7" class="edge">
+<title>Node0x558fbd5a0450:s1&#45;&gt;Node0x558fbd5a0030</title>
+<path fill="none" stroke="black" d="M1283.5,-589C1283.5,-487 1349.65,-209.1 1285.25,-130 1262.29,-101.79 1184.62,-84.7 1109.84,-74.54"/>
+<polygon fill="black" stroke="black" points="1110.71,-71.12 1100.34,-73.28 1109.8,-78.06 1110.71,-71.12"/>
+</g>
+<!-- Node0x558fbd5a04e0&#45;&gt;Node0x558fbd59d980 -->
+<g id="edge8" class="edge">
+<title>Node0x558fbd5a04e0:s0&#45;&gt;Node0x558fbd59d980</title>
+<path fill="none" stroke="black" d="M607.38,-316.88C520.06,-316.88 426.9,-279.47 362.42,-246.95"/>
+<polygon fill="black" stroke="black" points="364.16,-243.92 353.67,-242.47 360.97,-250.15 364.16,-243.92"/>
+</g>
+<!-- Node0x558fbd5a0800 -->
+<g id="node8" class="node">
+<title>Node0x558fbd5a0800</title>
+<polygon fill="#be242e" fill-opacity="0.439216" stroke="#3d50c3" points="624.62,-130.5 624.62,-267.25 1275.88,-267.25 1275.88,-130.5 624.62,-130.5"/>
+<text xml:space="preserve" text-anchor="start" x="632.62" y="-249.95" font-family="Courier,monospace" font-size="14.00">if.end6:</text>
+<polyline fill="none" stroke="#3d50c3" points="624.62,-242 1275.88,-242"/>
+<text xml:space="preserve" text-anchor="start" x="632.62" y="-224.7" font-family="Courier,monospace" font-size="14.00">%conv7 = sext i32 %node to i64</text>
+<text xml:space="preserve" text-anchor="start" x="632.62" y="-207.45" font-family="Courier,monospace" font-size="14.00"> %call8 = call noundef nonnull align 4 dereferenceable(4) ptr</text>
+<text xml:space="preserve" text-anchor="start" x="632.62" y="-190.2" font-family="Courier,monospace" font-size="14.00">... @_ZNSt6vectorIiSaIiEEixEm(ptr noundef nonnull align 8 dereferenceable(24)</text>
+<text xml:space="preserve" text-anchor="start" x="632.62" y="-172.95" font-family="Courier,monospace" font-size="14.00">... %color, i64 noundef %conv7) #3</text>
+<text xml:space="preserve" text-anchor="start" x="632.62" y="-155.7" font-family="Courier,monospace" font-size="14.00"> store i32 0, ptr %call8, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="632.62" y="-138.45" font-family="Courier,monospace" font-size="14.00"> br label %for.inc</text>
+</g>
+<!-- Node0x558fbd5a04e0&#45;&gt;Node0x558fbd5a0800 -->
+<g id="edge9" class="edge">
+<title>Node0x558fbd5a04e0:s1&#45;&gt;Node0x558fbd5a0800</title>
+<path fill="none" stroke="black" d="M1108.75,-303.75C1108.75,-294.26 1106.74,-285.58 1103.16,-277.67"/>
+<polygon fill="black" stroke="black" points="1106.27,-276.04 1098.34,-269.01 1100.15,-279.45 1106.27,-276.04"/>
+</g>
+<!-- Node0x558fbd5a0030&#45;&gt;Node0x558fbd59fd10 -->
+<g id="edge11" class="edge">
+<title>Node0x558fbd5a0030&#45;&gt;Node0x558fbd59fd10</title>
+<path fill="none" stroke="black" d="M801.75,-74.05C724.33,-84.31 640.58,-101.65 615.25,-130 573.88,-176.3 567.35,-595.16 566.39,-759.57"/>
+<polygon fill="black" stroke="black" points="562.89,-759.42 566.33,-769.44 569.89,-759.46 562.89,-759.42"/>
+</g>
+<!-- Node0x558fbd5a0800&#45;&gt;Node0x558fbd5a0030 -->
+<g id="edge10" class="edge">
+<title>Node0x558fbd5a0800&#45;&gt;Node0x558fbd5a0030</title>
+<path fill="none" stroke="black" d="M950.25,-130.05C950.25,-121.61 950.25,-113.16 950.25,-105.2"/>
+<polygon fill="black" stroke="black" points="953.75,-105.46 950.25,-95.46 946.75,-105.46 953.75,-105.46"/>
+</g>
+</g>
+</svg></div>
+        </div>
+      </div>
+      <div class="exhibit-foot">This is the indvars regression from &sect;03, made visible: a new block computing <code>smax(m,0)+1</code> is inserted purely to clamp a trip count, before the loop even starts. Everything else &mdash; the recursive call, the backtrack pair, the terminal phi &mdash; is identical to stage A.</div>
+    </div>
+
+    <div class="exhibit">
+      <div class="exhibit-head">
+        <h3>isSafe()</h3>
+        <span class="sym">_Z6isSafeiRSt6vectorIiSaIiEERS_IS1_SaIS1_EEii</span>
+      </div>
+      <div class="exhibit-body">
+        <div class="exhibit-col">
+          <p class="col-label"><span class="n">10</span> blocks &middot; raw</p>
+          <div class="diagram-frame"><svg width="1120pt" height="1487pt"
+ viewBox="0.00 0.00 1120.00 1487.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 1483)">
+<title>CFG for &#39;_Z6isSafeiRSt6vectorIiSaIiEERS_IS1_SaIS1_EEii&#39; function</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-1483 1115.63,-1483 1115.63,4 -4,4"/>
+<text xml:space="preserve" text-anchor="middle" x="555.82" y="-7.95" font-family="Times,serif" font-size="14.00">CFG for &#39;_Z6isSafeiRSt6vectorIiSaIiEERS_IS1_SaIS1_EEii&#39; function</text>
+<!-- Node0x5644ca704fc0 -->
+<g id="node1" class="node">
+<title>Node0x5644ca704fc0</title>
+<polygon fill="#d65244" fill-opacity="0.439216" stroke="#3d50c3" points="486.88,-1203.75 486.88,-1478.5 857.63,-1478.5 857.63,-1203.75 486.88,-1203.75"/>
+<text xml:space="preserve" text-anchor="start" x="494.88" y="-1461.2" font-family="Courier,monospace" font-size="14.00">entry:</text>
+<polyline fill="none" stroke="#3d50c3" points="486.88,-1453.25 857.63,-1453.25"/>
+<text xml:space="preserve" text-anchor="start" x="494.88" y="-1435.95" font-family="Courier,monospace" font-size="14.00">%retval = alloca i1, align 1</text>
+<text xml:space="preserve" text-anchor="start" x="494.88" y="-1418.7" font-family="Courier,monospace" font-size="14.00"> %node.addr = alloca i32, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="494.88" y="-1401.45" font-family="Courier,monospace" font-size="14.00"> %color.addr = alloca ptr, align 8</text>
+<text xml:space="preserve" text-anchor="start" x="494.88" y="-1384.2" font-family="Courier,monospace" font-size="14.00"> %graph.addr = alloca ptr, align 8</text>
+<text xml:space="preserve" text-anchor="start" x="494.88" y="-1366.95" font-family="Courier,monospace" font-size="14.00"> %n.addr = alloca i32, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="494.88" y="-1349.7" font-family="Courier,monospace" font-size="14.00"> %col.addr = alloca i32, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="494.88" y="-1332.45" font-family="Courier,monospace" font-size="14.00"> %k = alloca i32, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="494.88" y="-1315.2" font-family="Courier,monospace" font-size="14.00"> store i32 %node, ptr %node.addr, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="494.88" y="-1297.95" font-family="Courier,monospace" font-size="14.00"> store ptr %color, ptr %color.addr, align 8</text>
+<text xml:space="preserve" text-anchor="start" x="494.88" y="-1280.7" font-family="Courier,monospace" font-size="14.00"> store ptr %graph, ptr %graph.addr, align 8</text>
+<text xml:space="preserve" text-anchor="start" x="494.88" y="-1263.45" font-family="Courier,monospace" font-size="14.00"> store i32 %n, ptr %n.addr, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="494.88" y="-1246.2" font-family="Courier,monospace" font-size="14.00"> store i32 %col, ptr %col.addr, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="494.88" y="-1228.95" font-family="Courier,monospace" font-size="14.00"> store i32 0, ptr %k, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="494.88" y="-1211.7" font-family="Courier,monospace" font-size="14.00"> br label %for.cond</text>
+</g>
+<!-- Node0x5644ca705020 -->
+<g id="node2" class="node">
+<title>Node0x5644ca705020</title>
+<polygon fill="#b70d28" fill-opacity="0.439216" stroke="#b70d28" points="482.76,-1039.25 482.76,-1166.75 861.76,-1166.75 861.76,-1039.25 482.76,-1039.25"/>
+<text xml:space="preserve" text-anchor="start" x="490.76" y="-1149.45" font-family="Courier,monospace" font-size="14.00">for.cond:</text>
+<polyline fill="none" stroke="#b70d28" points="482.76,-1141.5 861.76,-1141.5"/>
+<text xml:space="preserve" text-anchor="start" x="490.76" y="-1124.2" font-family="Courier,monospace" font-size="14.00">%0 = load i32, ptr %k, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="490.76" y="-1106.95" font-family="Courier,monospace" font-size="14.00"> %1 = load i32, ptr %n.addr, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="490.76" y="-1089.7" font-family="Courier,monospace" font-size="14.00"> %cmp = icmp slt i32 %0, %1</text>
+<text xml:space="preserve" text-anchor="start" x="490.76" y="-1072.45" font-family="Courier,monospace" font-size="14.00"> br i1 %cmp, label %for.body, label %for.end</text>
+<polyline fill="none" stroke="#b70d28" points="482.76,-1064.5 861.76,-1064.5"/>
+<text xml:space="preserve" text-anchor="middle" x="577.38" y="-1047.2" font-family="Courier,monospace" font-size="14.00">T</text>
+<polyline fill="none" stroke="#b70d28" points="672.01,-1039.25 672.01,-1064.5"/>
+<text xml:space="preserve" text-anchor="middle" x="766.63" y="-1047.2" font-family="Courier,monospace" font-size="14.00">F</text>
+</g>
+<!-- Node0x5644ca704fc0&#45;&gt;Node0x5644ca705020 -->
+<g id="edge1" class="edge">
+<title>Node0x5644ca704fc0&#45;&gt;Node0x5644ca705020</title>
+<path fill="none" stroke="black" d="M672.26,-1203.45C672.26,-1194.86 672.26,-1186.4 672.26,-1178.26"/>
+<polygon fill="black" stroke="black" points="675.76,-1178.5 672.26,-1168.5 668.76,-1178.5 675.76,-1178.5"/>
+</g>
+<!-- Node0x5644ca706330 -->
+<g id="node3" class="node">
+<title>Node0x5644ca706330</title>
+<polygon fill="#b70d28" fill-opacity="0.439216" stroke="#b70d28" points="368.13,-874.75 368.13,-1002.25 788.38,-1002.25 788.38,-874.75 368.13,-874.75"/>
+<text xml:space="preserve" text-anchor="start" x="376.13" y="-984.95" font-family="Courier,monospace" font-size="14.00">for.body:</text>
+<polyline fill="none" stroke="#b70d28" points="368.13,-977 788.38,-977"/>
+<text xml:space="preserve" text-anchor="start" x="376.13" y="-959.7" font-family="Courier,monospace" font-size="14.00">%2 = load i32, ptr %k, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="376.13" y="-942.45" font-family="Courier,monospace" font-size="14.00"> %3 = load i32, ptr %node.addr, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="376.13" y="-925.2" font-family="Courier,monospace" font-size="14.00"> %cmp1 = icmp ne i32 %2, %3</text>
+<text xml:space="preserve" text-anchor="start" x="376.13" y="-907.95" font-family="Courier,monospace" font-size="14.00"> br i1 %cmp1, label %land.lhs.true, label %if.end</text>
+<polyline fill="none" stroke="#b70d28" points="368.13,-900 788.38,-900"/>
+<text xml:space="preserve" text-anchor="middle" x="472.76" y="-882.7" font-family="Courier,monospace" font-size="14.00">T</text>
+<polyline fill="none" stroke="#b70d28" points="577.38,-874.75 577.38,-900"/>
+<text xml:space="preserve" text-anchor="middle" x="682.51" y="-882.7" font-family="Courier,monospace" font-size="14.00">F</text>
+</g>
+<!-- Node0x5644ca705020&#45;&gt;Node0x5644ca706330 -->
+<g id="edge2" class="edge">
+<title>Node0x5644ca705020:s0&#45;&gt;Node0x5644ca706330</title>
+<path fill="none" stroke="black" d="M577.38,-1038.75C577.38,-1030.69 577.41,-1022.27 577.46,-1013.88"/>
+<polygon fill="black" stroke="black" points="580.96,-1014.04 577.52,-1004.02 573.96,-1013.99 580.96,-1014.04"/>
+</g>
+<!-- Node0x5644ca7069c0 -->
+<g id="node4" class="node">
+<title>Node0x5644ca7069c0</title>
+<polygon fill="#d65244" fill-opacity="0.439216" stroke="#3d50c3" points="806.88,-653.88 806.88,-721.62 1111.63,-721.62 1111.63,-653.88 806.88,-653.88"/>
+<text xml:space="preserve" text-anchor="start" x="814.88" y="-704.33" font-family="Courier,monospace" font-size="14.00">for.end:</text>
+<polyline fill="none" stroke="#3d50c3" points="806.88,-696.38 1111.63,-696.38"/>
+<text xml:space="preserve" text-anchor="start" x="814.88" y="-679.08" font-family="Courier,monospace" font-size="14.00">store i1 true, ptr %retval, align 1</text>
+<text xml:space="preserve" text-anchor="start" x="814.88" y="-661.83" font-family="Courier,monospace" font-size="14.00"> br label %return</text>
+</g>
+<!-- Node0x5644ca705020&#45;&gt;Node0x5644ca7069c0 -->
+<g id="edge3" class="edge">
+<title>Node0x5644ca705020:s1&#45;&gt;Node0x5644ca7069c0</title>
+<path fill="none" stroke="black" d="M862.26,-1051.88C992.84,-1051.88 978.54,-829.99 966.07,-733.11"/>
+<polygon fill="black" stroke="black" points="969.58,-732.88 964.78,-723.44 962.64,-733.81 969.58,-732.88"/>
+</g>
+<!-- Node0x5644ca706960 -->
+<g id="node5" class="node">
+<title>Node0x5644ca706960</title>
+<polygon fill="#be242e" fill-opacity="0.439216" stroke="#3d50c3" points="99.63,-537.75 99.63,-837.75 750.88,-837.75 750.88,-537.75 99.63,-537.75"/>
+<text xml:space="preserve" text-anchor="start" x="107.63" y="-820.45" font-family="Courier,monospace" font-size="14.00">land.lhs.true:</text>
+<polyline fill="none" stroke="#3d50c3" points="99.63,-812.5 750.88,-812.5"/>
+<text xml:space="preserve" text-anchor="start" x="107.63" y="-795.2" font-family="Courier,monospace" font-size="14.00">%4 = load ptr, ptr %graph.addr, align 8, !nonnull !5, !align !6</text>
+<text xml:space="preserve" text-anchor="start" x="107.63" y="-777.95" font-family="Courier,monospace" font-size="14.00"> %5 = load i32, ptr %k, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="107.63" y="-760.7" font-family="Courier,monospace" font-size="14.00"> %conv = sext i32 %5 to i64</text>
+<text xml:space="preserve" text-anchor="start" x="107.63" y="-743.45" font-family="Courier,monospace" font-size="14.00"> %call = call noundef nonnull align 8 dereferenceable(24) ptr</text>
+<text xml:space="preserve" text-anchor="start" x="107.63" y="-726.2" font-family="Courier,monospace" font-size="14.00">... @_ZNSt6vectorIS_IiSaIiEESaIS1_EEixEm(ptr noundef nonnull align 8</text>
+<text xml:space="preserve" text-anchor="start" x="107.63" y="-708.95" font-family="Courier,monospace" font-size="14.00">... dereferenceable(24) %4, i64 noundef %conv) #2</text>
+<text xml:space="preserve" text-anchor="start" x="107.63" y="-691.7" font-family="Courier,monospace" font-size="14.00"> %6 = load i32, ptr %node.addr, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="107.63" y="-674.45" font-family="Courier,monospace" font-size="14.00"> %conv2 = sext i32 %6 to i64</text>
+<text xml:space="preserve" text-anchor="start" x="107.63" y="-657.2" font-family="Courier,monospace" font-size="14.00"> %call3 = call noundef nonnull align 4 dereferenceable(4) ptr</text>
+<text xml:space="preserve" text-anchor="start" x="107.63" y="-639.95" font-family="Courier,monospace" font-size="14.00">... @_ZNSt6vectorIiSaIiEEixEm(ptr noundef nonnull align 8 dereferenceable(24)</text>
+<text xml:space="preserve" text-anchor="start" x="107.63" y="-622.7" font-family="Courier,monospace" font-size="14.00">... %call, i64 noundef %conv2) #2</text>
+<text xml:space="preserve" text-anchor="start" x="107.63" y="-605.45" font-family="Courier,monospace" font-size="14.00"> %7 = load i32, ptr %call3, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="107.63" y="-588.2" font-family="Courier,monospace" font-size="14.00"> %cmp4 = icmp eq i32 %7, 1</text>
+<text xml:space="preserve" text-anchor="start" x="107.63" y="-570.95" font-family="Courier,monospace" font-size="14.00"> br i1 %cmp4, label %land.lhs.true5, label %if.end</text>
+<polyline fill="none" stroke="#3d50c3" points="99.63,-563 750.88,-563"/>
+<text xml:space="preserve" text-anchor="middle" x="262.26" y="-545.7" font-family="Courier,monospace" font-size="14.00">T</text>
+<polyline fill="none" stroke="#3d50c3" points="424.88,-537.75 424.88,-563"/>
+<text xml:space="preserve" text-anchor="middle" x="587.51" y="-545.7" font-family="Courier,monospace" font-size="14.00">F</text>
+</g>
+<!-- Node0x5644ca706330&#45;&gt;Node0x5644ca706960 -->
+<g id="edge4" class="edge">
+<title>Node0x5644ca706330:s0&#45;&gt;Node0x5644ca706960</title>
+<path fill="none" stroke="black" d="M472.76,-874.25C472.76,-866.08 472.32,-857.77 471.53,-849.42"/>
+<polygon fill="black" stroke="black" points="475.01,-849.06 470.41,-839.52 468.05,-849.85 475.01,-849.06"/>
+</g>
+<!-- Node0x5644ca706d90 -->
+<g id="node6" class="node">
+<title>Node0x5644ca706d90</title>
+<polygon fill="#b70d28" fill-opacity="0.439216" stroke="#b70d28" points="563.13,-173.62 563.13,-224.12 719.38,-224.12 719.38,-173.62 563.13,-173.62"/>
+<text xml:space="preserve" text-anchor="start" x="571.13" y="-206.82" font-family="Courier,monospace" font-size="14.00">if.end:</text>
+<polyline fill="none" stroke="#b70d28" points="563.13,-198.88 719.38,-198.88"/>
+<text xml:space="preserve" text-anchor="start" x="571.13" y="-181.57" font-family="Courier,monospace" font-size="14.00">br label %for.inc</text>
+</g>
+<!-- Node0x5644ca706330&#45;&gt;Node0x5644ca706d90 -->
+<g id="edge5" class="edge">
+<title>Node0x5644ca706330:s1&#45;&gt;Node0x5644ca706d90</title>
+<path fill="none" stroke="black" d="M788.63,-887.38C805.82,-887.38 765.1,-284 756.26,-269.25 746.53,-253.04 731.43,-240.13 715.33,-230.07"/>
+<polygon fill="black" stroke="black" points="717.48,-227.27 707.08,-225.23 713.94,-233.31 717.48,-227.27"/>
+</g>
+<!-- Node0x5644ca708d50 -->
+<g id="node9" class="node">
+<title>Node0x5644ca708d50</title>
+<polygon fill="#d65244" fill-opacity="0.439216" stroke="#3d50c3" points="539.88,-43 539.88,-110.75 844.63,-110.75 844.63,-43 539.88,-43"/>
+<text xml:space="preserve" text-anchor="start" x="547.88" y="-93.45" font-family="Courier,monospace" font-size="14.00">return:</text>
+<polyline fill="none" stroke="#3d50c3" points="539.88,-85.5 844.63,-85.5"/>
+<text xml:space="preserve" text-anchor="start" x="547.88" y="-68.2" font-family="Courier,monospace" font-size="14.00">%13 = load i1, ptr %retval, align 1</text>
+<text xml:space="preserve" text-anchor="start" x="547.88" y="-50.95" font-family="Courier,monospace" font-size="14.00"> ret i1 %13</text>
+</g>
+<!-- Node0x5644ca7069c0&#45;&gt;Node0x5644ca708d50 -->
+<g id="edge13" class="edge">
+<title>Node0x5644ca7069c0&#45;&gt;Node0x5644ca708d50</title>
+<path fill="none" stroke="black" d="M945.39,-653.61C915.69,-582.8 843.48,-411.59 780.26,-269.25 757.59,-218.23 730.67,-160.01 712.62,-121.32"/>
+<polygon fill="black" stroke="black" points="715.82,-119.9 708.42,-112.32 709.48,-122.86 715.82,-119.9"/>
+</g>
+<!-- Node0x5644ca706960&#45;&gt;Node0x5644ca706d90 -->
+<g id="edge7" class="edge">
+<title>Node0x5644ca706960:s1&#45;&gt;Node0x5644ca706d90</title>
+<path fill="none" stroke="black" d="M751.13,-550.38C782.53,-550.38 736.84,-297.06 722.26,-269.25 714.64,-254.73 702.6,-241.95 690.11,-231.45"/>
+<polygon fill="black" stroke="black" points="692.62,-228.98 682.62,-225.49 688.26,-234.46 692.62,-228.98"/>
+</g>
+<!-- Node0x5644ca707aa0 -->
+<g id="node7" class="node">
+<title>Node0x5644ca707aa0</title>
+<polygon fill="#c53334" fill-opacity="0.439216" stroke="#3d50c3" points="29.13,-269.75 29.13,-500.75 713.38,-500.75 713.38,-269.75 29.13,-269.75"/>
+<text xml:space="preserve" text-anchor="start" x="37.13" y="-483.45" font-family="Courier,monospace" font-size="14.00">land.lhs.true5:</text>
+<polyline fill="none" stroke="#3d50c3" points="29.13,-475.5 713.38,-475.5"/>
+<text xml:space="preserve" text-anchor="start" x="37.13" y="-458.2" font-family="Courier,monospace" font-size="14.00">%8 = load ptr, ptr %color.addr, align 8, !nonnull !5, !align !6</text>
+<text xml:space="preserve" text-anchor="start" x="37.13" y="-440.95" font-family="Courier,monospace" font-size="14.00"> %9 = load i32, ptr %k, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="37.13" y="-423.7" font-family="Courier,monospace" font-size="14.00"> %conv6 = sext i32 %9 to i64</text>
+<text xml:space="preserve" text-anchor="start" x="37.13" y="-406.45" font-family="Courier,monospace" font-size="14.00"> %call7 = call noundef nonnull align 4 dereferenceable(4) ptr</text>
+<text xml:space="preserve" text-anchor="start" x="37.13" y="-389.2" font-family="Courier,monospace" font-size="14.00">... @_ZNSt6vectorIiSaIiEEixEm(ptr noundef nonnull align 8 dereferenceable(24) %8,</text>
+<text xml:space="preserve" text-anchor="start" x="37.13" y="-371.95" font-family="Courier,monospace" font-size="14.00">... i64 noundef %conv6) #2</text>
+<text xml:space="preserve" text-anchor="start" x="37.13" y="-354.7" font-family="Courier,monospace" font-size="14.00"> %10 = load i32, ptr %call7, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="37.13" y="-337.45" font-family="Courier,monospace" font-size="14.00"> %11 = load i32, ptr %col.addr, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="37.13" y="-320.2" font-family="Courier,monospace" font-size="14.00"> %cmp8 = icmp eq i32 %10, %11</text>
+<text xml:space="preserve" text-anchor="start" x="37.13" y="-302.95" font-family="Courier,monospace" font-size="14.00"> br i1 %cmp8, label %if.then, label %if.end</text>
+<polyline fill="none" stroke="#3d50c3" points="29.13,-295 713.38,-295"/>
+<text xml:space="preserve" text-anchor="middle" x="199.76" y="-277.7" font-family="Courier,monospace" font-size="14.00">T</text>
+<polyline fill="none" stroke="#3d50c3" points="370.38,-269.75 370.38,-295"/>
+<text xml:space="preserve" text-anchor="middle" x="541.51" y="-277.7" font-family="Courier,monospace" font-size="14.00">F</text>
+</g>
+<!-- Node0x5644ca706960&#45;&gt;Node0x5644ca707aa0 -->
+<g id="edge6" class="edge">
+<title>Node0x5644ca706960:s0&#45;&gt;Node0x5644ca707aa0</title>
+<path fill="none" stroke="black" d="M262.26,-537.25C262.26,-528.59 263.45,-520.1 265.58,-511.82"/>
+<polygon fill="black" stroke="black" points="268.85,-513.11 268.46,-502.52 262.16,-511.04 268.85,-513.11"/>
+</g>
+<!-- Node0x5644ca706e10 -->
+<g id="node10" class="node">
+<title>Node0x5644ca706e10</title>
+<polygon fill="#b70d28" fill-opacity="0.439216" stroke="#b70d28" points="101.01,-25.75 101.01,-128 397.51,-128 397.51,-25.75 101.01,-25.75"/>
+<text xml:space="preserve" text-anchor="start" x="109.01" y="-110.7" font-family="Courier,monospace" font-size="14.00">for.inc:</text>
+<polyline fill="none" stroke="#b70d28" points="101.01,-102.75 397.51,-102.75"/>
+<text xml:space="preserve" text-anchor="start" x="109.01" y="-85.45" font-family="Courier,monospace" font-size="14.00">%12 = load i32, ptr %k, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="109.01" y="-68.2" font-family="Courier,monospace" font-size="14.00"> %inc = add nsw i32 %12, 1</text>
+<text xml:space="preserve" text-anchor="start" x="109.01" y="-50.95" font-family="Courier,monospace" font-size="14.00"> store i32 %inc, ptr %k, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="109.01" y="-33.7" font-family="Courier,monospace" font-size="14.00"> br label %for.cond, !llvm.loop !7</text>
+</g>
+<!-- Node0x5644ca706d90&#45;&gt;Node0x5644ca706e10 -->
+<g id="edge11" class="edge">
+<title>Node0x5644ca706d90&#45;&gt;Node0x5644ca706e10</title>
+<path fill="none" stroke="black" d="M562.87,-173.88C518.66,-160.35 461.78,-142.93 408.63,-126.66"/>
+<polygon fill="black" stroke="black" points="409.74,-123.34 399.15,-123.76 407.69,-130.04 409.74,-123.34"/>
+</g>
+<!-- Node0x5644ca707aa0&#45;&gt;Node0x5644ca706d90 -->
+<g id="edge9" class="edge">
+<title>Node0x5644ca707aa0:s1&#45;&gt;Node0x5644ca706d90</title>
+<path fill="none" stroke="black" d="M713.63,-282.38C741.86,-282.38 713.17,-254.74 683.99,-231.45"/>
+<polygon fill="black" stroke="black" points="686.2,-228.74 676.17,-225.34 681.89,-234.26 686.2,-228.74"/>
+</g>
+<!-- Node0x5644ca707b00 -->
+<g id="node8" class="node">
+<title>Node0x5644ca707b00</title>
+<polygon fill="#e16751" fill-opacity="0.439216" stroke="#3d50c3" points="137.76,-165 137.76,-232.75 450.76,-232.75 450.76,-165 137.76,-165"/>
+<text xml:space="preserve" text-anchor="start" x="145.76" y="-215.45" font-family="Courier,monospace" font-size="14.00">if.then:</text>
+<polyline fill="none" stroke="#3d50c3" points="137.76,-207.5 450.76,-207.5"/>
+<text xml:space="preserve" text-anchor="start" x="145.76" y="-190.2" font-family="Courier,monospace" font-size="14.00">store i1 false, ptr %retval, align 1</text>
+<text xml:space="preserve" text-anchor="start" x="145.76" y="-172.95" font-family="Courier,monospace" font-size="14.00"> br label %return</text>
+</g>
+<!-- Node0x5644ca707aa0&#45;&gt;Node0x5644ca707b00 -->
+<g id="edge8" class="edge">
+<title>Node0x5644ca707aa0:s0&#45;&gt;Node0x5644ca707b00</title>
+<path fill="none" stroke="black" d="M199.76,-269.25C199.76,-258.49 203.79,-249.21 210.18,-241.27"/>
+<polygon fill="black" stroke="black" points="212.52,-243.89 216.93,-234.25 207.47,-239.04 212.52,-243.89"/>
+</g>
+<!-- Node0x5644ca707b00&#45;&gt;Node0x5644ca708d50 -->
+<g id="edge10" class="edge">
+<title>Node0x5644ca707b00&#45;&gt;Node0x5644ca708d50</title>
+<path fill="none" stroke="black" d="M404.86,-164.53C456.51,-148.96 518.13,-130.38 571.04,-114.42"/>
+<polygon fill="black" stroke="black" points="571.83,-117.84 580.4,-111.6 569.81,-111.14 571.83,-117.84"/>
+</g>
+<!-- Node0x5644ca706e10&#45;&gt;Node0x5644ca705020 -->
+<g id="edge12" class="edge">
+<title>Node0x5644ca706e10&#45;&gt;Node0x5644ca705020</title>
+<path fill="none" stroke="black" d="M174.99,-128.39C159.23,-139.84 142.93,-152.25 128.26,-164.5 76.93,-207.36 51.27,-210.01 20.26,-269.25 -3.77,-315.15 1.26,-332.45 1.26,-384.25 1.26,-688.75 1.26,-688.75 1.26,-688.75 1.26,-911.98 273.84,-1018.53 471.53,-1066.45"/>
+<polygon fill="black" stroke="black" points="470.65,-1069.84 481.19,-1068.75 472.28,-1063.03 470.65,-1069.84"/>
+</g>
+</g>
+</svg></div>
+        </div>
+        <div class="exhibit-col">
+          <p class="col-label"><span class="n">6</span> blocks &middot; stage A</p>
+          <div class="diagram-frame"><svg width="1537pt" height="968pt"
+ viewBox="0.00 0.00 1537.00 968.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 964.25)">
+<title>CFG for &#39;_Z6isSafeiRSt6vectorIiSaIiEERS_IS1_SaIS1_EEii&#39; function</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-964.25 1532.62,-964.25 1532.62,4 -4,4"/>
+<text xml:space="preserve" text-anchor="middle" x="764.31" y="-7.95" font-family="Times,serif" font-size="14.00">CFG for &#39;_Z6isSafeiRSt6vectorIiSaIiEERS_IS1_SaIS1_EEii&#39; function</text>
+<!-- Node0x55ffc457ab90 -->
+<g id="node1" class="node">
+<title>Node0x55ffc457ab90</title>
+<polygon fill="#d65244" fill-opacity="0.439216" stroke="#3d50c3" points="123.75,-909.25 123.75,-959.75 288.25,-959.75 288.25,-909.25 123.75,-909.25"/>
+<text xml:space="preserve" text-anchor="start" x="131.75" y="-942.45" font-family="Courier,monospace" font-size="14.00">entry:</text>
+<polyline fill="none" stroke="#3d50c3" points="123.75,-934.5 288.25,-934.5"/>
+<text xml:space="preserve" text-anchor="start" x="131.75" y="-917.2" font-family="Courier,monospace" font-size="14.00">br label %for.cond</text>
+</g>
+<!-- Node0x55ffc457abf0 -->
+<g id="node2" class="node">
+<title>Node0x55ffc457abf0</title>
+<polygon fill="#b70d28" fill-opacity="0.439216" stroke="#b70d28" points="0,-762 0,-872.25 412,-872.25 412,-762 0,-762"/>
+<text xml:space="preserve" text-anchor="start" x="8" y="-854.95" font-family="Courier,monospace" font-size="14.00">for.cond:</text>
+<polyline fill="none" stroke="#b70d28" points="0,-847 412,-847"/>
+<text xml:space="preserve" text-anchor="start" x="8" y="-829.7" font-family="Courier,monospace" font-size="14.00">%k.0 = phi i32 [ 0, %entry ], [ %inc, %for.inc ]</text>
+<text xml:space="preserve" text-anchor="start" x="8" y="-812.45" font-family="Courier,monospace" font-size="14.00"> %cmp = icmp sge i32 %k.0, %n</text>
+<text xml:space="preserve" text-anchor="start" x="8" y="-795.2" font-family="Courier,monospace" font-size="14.00"> br i1 %cmp, label %return, label %for.body</text>
+<polyline fill="none" stroke="#b70d28" points="0,-787.25 412,-787.25"/>
+<text xml:space="preserve" text-anchor="middle" x="102.62" y="-769.95" font-family="Courier,monospace" font-size="14.00">T</text>
+<polyline fill="none" stroke="#b70d28" points="205.25,-762 205.25,-787.25"/>
+<text xml:space="preserve" text-anchor="middle" x="308.38" y="-769.95" font-family="Courier,monospace" font-size="14.00">F</text>
+</g>
+<!-- Node0x55ffc457ab90&#45;&gt;Node0x55ffc457abf0 -->
+<g id="edge1" class="edge">
+<title>Node0x55ffc457ab90&#45;&gt;Node0x55ffc457abf0</title>
+<path fill="none" stroke="black" d="M206,-909.03C206,-901.5 206,-892.82 206,-883.87"/>
+<polygon fill="black" stroke="black" points="209.5,-883.98 206,-873.98 202.5,-883.98 209.5,-883.98"/>
+</g>
+<!-- Node0x55ffc457b3c0 -->
+<g id="node3" class="node">
+<title>Node0x55ffc457b3c0</title>
+<polygon fill="#d65244" fill-opacity="0.439216" stroke="#3d50c3" points="164.62,-34.38 164.62,-84.88 271.38,-84.88 271.38,-34.38 164.62,-34.38"/>
+<text xml:space="preserve" text-anchor="start" x="172.62" y="-67.58" font-family="Courier,monospace" font-size="14.00">return:</text>
+<polyline fill="none" stroke="#3d50c3" points="164.62,-59.62 271.38,-59.62"/>
+<text xml:space="preserve" text-anchor="start" x="172.62" y="-42.33" font-family="Courier,monospace" font-size="14.00">ret i1 %cmp</text>
+</g>
+<!-- Node0x55ffc457abf0&#45;&gt;Node0x55ffc457b3c0 -->
+<g id="edge2" class="edge">
+<title>Node0x55ffc457abf0:s0&#45;&gt;Node0x55ffc457b3c0</title>
+<path fill="none" stroke="black" d="M102.62,-761.5C102.63,-480.62 -2.45,-379.26 127,-130 134.89,-114.81 147.77,-101.99 161.39,-91.67"/>
+<polygon fill="black" stroke="black" points="163.06,-94.77 169.17,-86.12 159,-89.07 163.06,-94.77"/>
+</g>
+<!-- Node0x55ffc457b4a0 -->
+<g id="node4" class="node">
+<title>Node0x55ffc457b4a0</title>
+<polygon fill="#b70d28" fill-opacity="0.439216" stroke="#b70d28" points="733.25,-632 733.25,-725 1194.75,-725 1194.75,-632 733.25,-632"/>
+<text xml:space="preserve" text-anchor="start" x="741.25" y="-707.7" font-family="Courier,monospace" font-size="14.00">for.body:</text>
+<polyline fill="none" stroke="#b70d28" points="733.25,-699.75 1194.75,-699.75"/>
+<text xml:space="preserve" text-anchor="start" x="741.25" y="-682.45" font-family="Courier,monospace" font-size="14.00">%cmp1.not = icmp eq i32 %k.0, %node</text>
+<text xml:space="preserve" text-anchor="start" x="741.25" y="-665.2" font-family="Courier,monospace" font-size="14.00"> br i1 %cmp1.not, label %for.inc, label %land.lhs.true</text>
+<polyline fill="none" stroke="#b70d28" points="733.25,-657.25 1194.75,-657.25"/>
+<text xml:space="preserve" text-anchor="middle" x="848.38" y="-639.95" font-family="Courier,monospace" font-size="14.00">T</text>
+<polyline fill="none" stroke="#b70d28" points="963.5,-632 963.5,-657.25"/>
+<text xml:space="preserve" text-anchor="middle" x="1079.12" y="-639.95" font-family="Courier,monospace" font-size="14.00">F</text>
+</g>
+<!-- Node0x55ffc457abf0&#45;&gt;Node0x55ffc457b4a0 -->
+<g id="edge3" class="edge">
+<title>Node0x55ffc457abf0:s1&#45;&gt;Node0x55ffc457b4a0</title>
+<path fill="none" stroke="black" d="M412.5,-774.62C535.31,-774.62 671.3,-751.43 777.51,-727.95"/>
+<polygon fill="black" stroke="black" points="778.2,-731.39 787.19,-725.79 776.67,-724.55 778.2,-731.39"/>
+</g>
+<!-- Node0x55ffc457b1e0 -->
+<g id="node5" class="node">
+<title>Node0x55ffc457b1e0</title>
+<polygon fill="#b70d28" fill-opacity="0.439216" stroke="#b70d28" points="604.75,-25.75 604.75,-93.5 901.25,-93.5 901.25,-25.75 604.75,-25.75"/>
+<text xml:space="preserve" text-anchor="start" x="612.75" y="-76.2" font-family="Courier,monospace" font-size="14.00">for.inc:</text>
+<polyline fill="none" stroke="#b70d28" points="604.75,-68.25 901.25,-68.25"/>
+<text xml:space="preserve" text-anchor="start" x="612.75" y="-50.95" font-family="Courier,monospace" font-size="14.00">%inc = add nuw nsw i32 %k.0, 1</text>
+<text xml:space="preserve" text-anchor="start" x="612.75" y="-33.7" font-family="Courier,monospace" font-size="14.00"> br label %for.cond, !llvm.loop !5</text>
+</g>
+<!-- Node0x55ffc457b4a0&#45;&gt;Node0x55ffc457b1e0 -->
+<g id="edge4" class="edge">
+<title>Node0x55ffc457b4a0:s0&#45;&gt;Node0x55ffc457b1e0</title>
+<path fill="none" stroke="black" d="M848.38,-631.5C848.38,-519.98 877.2,-231.04 830,-130 825.2,-119.73 818.1,-110.31 810.12,-101.95"/>
+<polygon fill="black" stroke="black" points="812.6,-99.47 802.99,-95 807.71,-104.49 812.6,-99.47"/>
+</g>
+<!-- Node0x55ffc457b530 -->
+<g id="node6" class="node">
+<title>Node0x55ffc457b530</title>
+<polygon fill="#be242e" fill-opacity="0.439216" stroke="#3d50c3" points="877.38,-346.75 877.38,-595 1528.62,-595 1528.62,-346.75 877.38,-346.75"/>
+<text xml:space="preserve" text-anchor="start" x="885.38" y="-577.7" font-family="Courier,monospace" font-size="14.00">land.lhs.true:</text>
+<polyline fill="none" stroke="#3d50c3" points="877.38,-569.75 1528.62,-569.75"/>
+<text xml:space="preserve" text-anchor="start" x="885.38" y="-552.45" font-family="Courier,monospace" font-size="14.00">%conv = zext nneg i32 %k.0 to i64</text>
+<text xml:space="preserve" text-anchor="start" x="885.38" y="-535.2" font-family="Courier,monospace" font-size="14.00"> %call = call noundef nonnull align 8 dereferenceable(24) ptr</text>
+<text xml:space="preserve" text-anchor="start" x="885.38" y="-517.95" font-family="Courier,monospace" font-size="14.00">... @_ZNSt6vectorIS_IiSaIiEESaIS1_EEixEm(ptr noundef nonnull align 8</text>
+<text xml:space="preserve" text-anchor="start" x="885.38" y="-500.7" font-family="Courier,monospace" font-size="14.00">... dereferenceable(24) %graph, i64 noundef %conv) #2</text>
+<text xml:space="preserve" text-anchor="start" x="885.38" y="-483.45" font-family="Courier,monospace" font-size="14.00"> %conv2 = sext i32 %node to i64</text>
+<text xml:space="preserve" text-anchor="start" x="885.38" y="-466.2" font-family="Courier,monospace" font-size="14.00"> %call3 = call noundef nonnull align 4 dereferenceable(4) ptr</text>
+<text xml:space="preserve" text-anchor="start" x="885.38" y="-448.95" font-family="Courier,monospace" font-size="14.00">... @_ZNSt6vectorIiSaIiEEixEm(ptr noundef nonnull align 8 dereferenceable(24)</text>
+<text xml:space="preserve" text-anchor="start" x="885.38" y="-431.7" font-family="Courier,monospace" font-size="14.00">... %call, i64 noundef %conv2) #2</text>
+<text xml:space="preserve" text-anchor="start" x="885.38" y="-414.45" font-family="Courier,monospace" font-size="14.00"> %0 = load i32, ptr %call3, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="885.38" y="-397.2" font-family="Courier,monospace" font-size="14.00"> %cmp4 = icmp eq i32 %0, 1</text>
+<text xml:space="preserve" text-anchor="start" x="885.38" y="-379.95" font-family="Courier,monospace" font-size="14.00"> br i1 %cmp4, label %land.lhs.true5, label %for.inc</text>
+<polyline fill="none" stroke="#3d50c3" points="877.38,-372 1528.62,-372"/>
+<text xml:space="preserve" text-anchor="middle" x="1040" y="-354.7" font-family="Courier,monospace" font-size="14.00">T</text>
+<polyline fill="none" stroke="#3d50c3" points="1202.62,-346.75 1202.62,-372"/>
+<text xml:space="preserve" text-anchor="middle" x="1365.25" y="-354.7" font-family="Courier,monospace" font-size="14.00">F</text>
+</g>
+<!-- Node0x55ffc457b4a0&#45;&gt;Node0x55ffc457b530 -->
+<g id="edge5" class="edge">
+<title>Node0x55ffc457b4a0:s1&#45;&gt;Node0x55ffc457b530</title>
+<path fill="none" stroke="black" d="M1195.75,-644.62C1219.1,-644.62 1228.93,-628.68 1231.3,-606.48"/>
+<polygon fill="black" stroke="black" points="1234.79,-606.8 1231.81,-596.63 1227.79,-606.44 1234.79,-606.8"/>
+</g>
+<!-- Node0x55ffc457b1e0&#45;&gt;Node0x55ffc457abf0 -->
+<g id="edge10" class="edge">
+<title>Node0x55ffc457b1e0&#45;&gt;Node0x55ffc457abf0</title>
+<path fill="none" stroke="black" d="M604.54,-67.86C438.59,-77.5 189.13,-97.26 160,-130 79.67,-220.27 155.15,-596.81 190.25,-750.43"/>
+<polygon fill="black" stroke="black" points="186.81,-751.1 192.47,-760.06 193.63,-749.53 186.81,-751.1"/>
+</g>
+<!-- Node0x55ffc457b530&#45;&gt;Node0x55ffc457b1e0 -->
+<g id="edge7" class="edge">
+<title>Node0x55ffc457b530:s1&#45;&gt;Node0x55ffc457b1e0</title>
+<path fill="none" stroke="black" d="M1365.25,-346.25C1365.25,-146.49 1094.28,-86.11 912.87,-68.06"/>
+<polygon fill="black" stroke="black" points="913.39,-64.6 903.11,-67.13 912.73,-71.57 913.39,-64.6"/>
+</g>
+<!-- Node0x55ffc457c940 -->
+<g id="node7" class="node">
+<title>Node0x55ffc457c940</title>
+<polygon fill="#c53334" fill-opacity="0.439216" stroke="#3d50c3" points="169.38,-130.5 169.38,-309.75 820.62,-309.75 820.62,-130.5 169.38,-130.5"/>
+<text xml:space="preserve" text-anchor="start" x="177.38" y="-292.45" font-family="Courier,monospace" font-size="14.00">land.lhs.true5:</text>
+<polyline fill="none" stroke="#3d50c3" points="169.38,-284.5 820.62,-284.5"/>
+<text xml:space="preserve" text-anchor="start" x="177.38" y="-267.2" font-family="Courier,monospace" font-size="14.00">%conv6 = zext nneg i32 %k.0 to i64</text>
+<text xml:space="preserve" text-anchor="start" x="177.38" y="-249.95" font-family="Courier,monospace" font-size="14.00"> %call7 = call noundef nonnull align 4 dereferenceable(4) ptr</text>
+<text xml:space="preserve" text-anchor="start" x="177.38" y="-232.7" font-family="Courier,monospace" font-size="14.00">... @_ZNSt6vectorIiSaIiEEixEm(ptr noundef nonnull align 8 dereferenceable(24)</text>
+<text xml:space="preserve" text-anchor="start" x="177.38" y="-215.45" font-family="Courier,monospace" font-size="14.00">... %color, i64 noundef %conv6) #2</text>
+<text xml:space="preserve" text-anchor="start" x="177.38" y="-198.2" font-family="Courier,monospace" font-size="14.00"> %1 = load i32, ptr %call7, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="177.38" y="-180.95" font-family="Courier,monospace" font-size="14.00"> %cmp8 = icmp eq i32 %1, %col</text>
+<text xml:space="preserve" text-anchor="start" x="177.38" y="-163.7" font-family="Courier,monospace" font-size="14.00"> br i1 %cmp8, label %return, label %for.inc</text>
+<polyline fill="none" stroke="#3d50c3" points="169.38,-155.75 820.62,-155.75"/>
+<text xml:space="preserve" text-anchor="middle" x="332" y="-138.45" font-family="Courier,monospace" font-size="14.00">T</text>
+<polyline fill="none" stroke="#3d50c3" points="494.62,-130.5 494.62,-155.75"/>
+<text xml:space="preserve" text-anchor="middle" x="657.25" y="-138.45" font-family="Courier,monospace" font-size="14.00">F</text>
+</g>
+<!-- Node0x55ffc457b530&#45;&gt;Node0x55ffc457c940 -->
+<g id="edge6" class="edge">
+<title>Node0x55ffc457b530:s0&#45;&gt;Node0x55ffc457c940</title>
+<path fill="none" stroke="black" d="M876.38,-359.38C807.66,-359.38 735.93,-339.29 673.46,-314.44"/>
+<polygon fill="black" stroke="black" points="675.1,-311.33 664.51,-310.81 672.47,-317.81 675.1,-311.33"/>
+</g>
+<!-- Node0x55ffc457c940&#45;&gt;Node0x55ffc457b3c0 -->
+<g id="edge8" class="edge">
+<title>Node0x55ffc457c940:s0&#45;&gt;Node0x55ffc457b3c0</title>
+<path fill="none" stroke="black" d="M168.38,-143.12C143.96,-143.12 163.56,-116.27 184.9,-93.2"/>
+<polygon fill="black" stroke="black" points="187.36,-95.69 191.72,-86.03 182.29,-90.87 187.36,-95.69"/>
+</g>
+<!-- Node0x55ffc457c940&#45;&gt;Node0x55ffc457b1e0 -->
+<g id="edge9" class="edge">
+<title>Node0x55ffc457c940:s1&#45;&gt;Node0x55ffc457b1e0</title>
+<path fill="none" stroke="black" d="M820.88,-143.12C844.85,-143.12 827.31,-122.09 804.07,-101.27"/>
+<polygon fill="black" stroke="black" points="806.64,-98.87 796.81,-94.94 802.04,-104.15 806.64,-98.87"/>
+</g>
+</g>
+</svg></div>
+        </div>
+      </div>
+      <div class="exhibit-foot">The guard function. A single loop over neighbors with a short-circuited <code>&amp;&amp;</code> (adjacent <b>and</b> same color &rarr; unsafe) &mdash; no recursion, called from inside <code>solve</code>'s loop body.</div>
+    </div>
+
+    <div class="exhibit">
+      <div class="exhibit-head">
+        <h3>graphColoring()</h3>
+        <span class="sym">_Z13graphColoringRSt6vectorIS_IiSaIiEESaIS1_EEii</span>
+      </div>
+      <div class="exhibit-body">
+        <div class="exhibit-col">
+          <p class="col-label">raw</p>
+          <div class="diagram-frame"><svg width="1527pt" height="1366pt"
+ viewBox="0.00 0.00 1527.00 1366.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 1362.25)">
+<title>CFG for &#39;_Z13graphColoringRSt6vectorIS_IiSaIiEESaIS1_EEii&#39; function</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-1362.25 1523.25,-1362.25 1523.25,4 -4,4"/>
+<text xml:space="preserve" text-anchor="middle" x="759.62" y="-7.95" font-family="Times,serif" font-size="14.00">CFG for &#39;_Z13graphColoringRSt6vectorIS_IiSaIiEESaIS1_EEii&#39; function</text>
+<!-- Node0x5644ca70b520 -->
+<g id="node1" class="node">
+<title>Node0x5644ca70b520</title>
+<polygon fill="#b70d28" fill-opacity="0.439216" stroke="#b70d28" points="569.75,-824.25 569.75,-1357.75 1237.5,-1357.75 1237.5,-824.25 569.75,-824.25"/>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-1340.45" font-family="Courier,monospace" font-size="14.00">entry:</text>
+<polyline fill="none" stroke="#b70d28" points="569.75,-1332.5 1237.5,-1332.5"/>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-1315.2" font-family="Courier,monospace" font-size="14.00">%this.addr.i9 = alloca ptr, align 8</text>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-1297.95" font-family="Courier,monospace" font-size="14.00"> %this.addr.i7 = alloca ptr, align 8</text>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-1280.7" font-family="Courier,monospace" font-size="14.00"> %this.addr.i5 = alloca ptr, align 8</text>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-1263.45" font-family="Courier,monospace" font-size="14.00"> %this.addr.i = alloca ptr, align 8</text>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-1246.2" font-family="Courier,monospace" font-size="14.00"> %retval = alloca i1, align 1</text>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-1228.95" font-family="Courier,monospace" font-size="14.00"> %graph.addr = alloca ptr, align 8</text>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-1211.7" font-family="Courier,monospace" font-size="14.00"> %m.addr = alloca i32, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-1194.45" font-family="Courier,monospace" font-size="14.00"> %N.addr = alloca i32, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-1177.2" font-family="Courier,monospace" font-size="14.00"> %color = alloca %&quot;class.std::vector.0&quot;, align 8</text>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-1159.95" font-family="Courier,monospace" font-size="14.00"> %ref.tmp = alloca i32, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-1142.7" font-family="Courier,monospace" font-size="14.00"> %ref.tmp1 = alloca %&quot;class.std::allocator.2&quot;, align 1</text>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-1125.45" font-family="Courier,monospace" font-size="14.00"> %exn.slot = alloca ptr, align 8</text>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-1108.2" font-family="Courier,monospace" font-size="14.00"> %ehselector.slot = alloca i32, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-1090.95" font-family="Courier,monospace" font-size="14.00"> %cleanup.dest.slot = alloca i32, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-1073.7" font-family="Courier,monospace" font-size="14.00"> store ptr %graph, ptr %graph.addr, align 8</text>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-1056.45" font-family="Courier,monospace" font-size="14.00"> store i32 %m, ptr %m.addr, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-1039.2" font-family="Courier,monospace" font-size="14.00"> store i32 %N, ptr %N.addr, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-1021.95" font-family="Courier,monospace" font-size="14.00"> %0 = load i32, ptr %N.addr, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-1004.7" font-family="Courier,monospace" font-size="14.00"> %conv = sext i32 %0 to i64</text>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-987.45" font-family="Courier,monospace" font-size="14.00"> store i32 0, ptr %ref.tmp, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-970.2" font-family="Courier,monospace" font-size="14.00"> store ptr %ref.tmp1, ptr %this.addr.i, align 8</text>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-952.95" font-family="Courier,monospace" font-size="14.00"> %this1.i = load ptr, ptr %this.addr.i, align 8</text>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-935.7" font-family="Courier,monospace" font-size="14.00"> store ptr %this1.i, ptr %this.addr.i9, align 8</text>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-918.45" font-family="Courier,monospace" font-size="14.00"> %this1.i10 = load ptr, ptr %this.addr.i9, align 8</text>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-901.2" font-family="Courier,monospace" font-size="14.00"> invoke void @_ZNSt6vectorIiSaIiEEC2EmRKiRKS0_(ptr noundef nonnull align 8</text>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-883.95" font-family="Courier,monospace" font-size="14.00">... dereferenceable(24) %color, i64 noundef %conv, ptr noundef nonnull align 4</text>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-866.7" font-family="Courier,monospace" font-size="14.00">... dereferenceable(4) %ref.tmp, ptr noundef nonnull align 1 dereferenceable(1)</text>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-849.45" font-family="Courier,monospace" font-size="14.00">... %ref.tmp1)</text>
+<text xml:space="preserve" text-anchor="start" x="577.75" y="-832.2" font-family="Courier,monospace" font-size="14.00"> to label %invoke.cont unwind label %lpad</text>
+</g>
+<!-- Node0x5644ca70cb20 -->
+<g id="node2" class="node">
+<title>Node0x5644ca70cb20</title>
+<polygon fill="#b70d28" fill-opacity="0.439216" stroke="#b70d28" points="247.75,-547 247.75,-787.25 915.5,-787.25 915.5,-547 247.75,-547"/>
+<text xml:space="preserve" text-anchor="start" x="255.75" y="-769.95" font-family="Courier,monospace" font-size="14.00">invoke.cont:</text>
+<polyline fill="none" stroke="#b70d28" points="247.75,-762 915.5,-762"/>
+<text xml:space="preserve" text-anchor="start" x="255.75" y="-744.7" font-family="Courier,monospace" font-size="14.00">store ptr %ref.tmp1, ptr %this.addr.i5, align 8</text>
+<text xml:space="preserve" text-anchor="start" x="255.75" y="-727.45" font-family="Courier,monospace" font-size="14.00"> %this1.i6 = load ptr, ptr %this.addr.i5, align 8</text>
+<text xml:space="preserve" text-anchor="start" x="255.75" y="-710.2" font-family="Courier,monospace" font-size="14.00"> call void @_ZNSt15__new_allocatorIiED2Ev(ptr noundef nonnull align 1</text>
+<text xml:space="preserve" text-anchor="start" x="255.75" y="-692.95" font-family="Courier,monospace" font-size="14.00">... dereferenceable(1) %this1.i6) #2</text>
+<text xml:space="preserve" text-anchor="start" x="255.75" y="-675.7" font-family="Courier,monospace" font-size="14.00"> %1 = load i32, ptr %m.addr, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="255.75" y="-658.45" font-family="Courier,monospace" font-size="14.00"> %2 = load i32, ptr %N.addr, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="255.75" y="-641.2" font-family="Courier,monospace" font-size="14.00"> %3 = load ptr, ptr %graph.addr, align 8, !nonnull !5, !align !6</text>
+<text xml:space="preserve" text-anchor="start" x="255.75" y="-623.95" font-family="Courier,monospace" font-size="14.00"> %call = invoke noundef zeroext i1</text>
+<text xml:space="preserve" text-anchor="start" x="255.75" y="-606.7" font-family="Courier,monospace" font-size="14.00">... @_Z5solveiRSt6vectorIiSaIiEEiiRS_IS1_SaIS1_EE(i32 noundef 0, ptr noundef</text>
+<text xml:space="preserve" text-anchor="start" x="255.75" y="-589.45" font-family="Courier,monospace" font-size="14.00">... nonnull align 8 dereferenceable(24) %color, i32 noundef %1, i32 noundef %2,</text>
+<text xml:space="preserve" text-anchor="start" x="255.75" y="-572.2" font-family="Courier,monospace" font-size="14.00">... ptr noundef nonnull align 8 dereferenceable(24) %3)</text>
+<text xml:space="preserve" text-anchor="start" x="255.75" y="-554.95" font-family="Courier,monospace" font-size="14.00"> to label %invoke.cont3 unwind label %lpad2</text>
+</g>
+<!-- Node0x5644ca70b520&#45;&gt;Node0x5644ca70cb20 -->
+<g id="edge1" class="edge">
+<title>Node0x5644ca70b520&#45;&gt;Node0x5644ca70cb20</title>
+<path fill="none" stroke="black" d="M700.61,-824.02C693.45,-814.64 686.41,-805.42 679.56,-796.43"/>
+<polygon fill="black" stroke="black" points="682.53,-794.56 673.68,-788.73 676.96,-798.8 682.53,-794.56"/>
+</g>
+<!-- Node0x5644ca70eb30 -->
+<g id="node3" class="node">
+<title>Node0x5644ca70eb30</title>
+<polygon fill="#f4c5ad" fill-opacity="0.439216" stroke="#3d50c3" points="934,-555.62 934,-778.62 1519.25,-778.62 1519.25,-555.62 934,-555.62"/>
+<text xml:space="preserve" text-anchor="start" x="942" y="-761.33" font-family="Courier,monospace" font-size="14.00">lpad:</text>
+<polyline fill="none" stroke="#3d50c3" points="934,-753.38 1519.25,-753.38"/>
+<text xml:space="preserve" text-anchor="start" x="942" y="-736.08" font-family="Courier,monospace" font-size="14.00">%4 = landingpad { ptr, i32 }</text>
+<text xml:space="preserve" text-anchor="start" x="942" y="-718.83" font-family="Courier,monospace" font-size="14.00"> cleanup</text>
+<text xml:space="preserve" text-anchor="start" x="942" y="-701.58" font-family="Courier,monospace" font-size="14.00"> %5 = extractvalue { ptr, i32 } %4, 0</text>
+<text xml:space="preserve" text-anchor="start" x="942" y="-684.33" font-family="Courier,monospace" font-size="14.00"> store ptr %5, ptr %exn.slot, align 8</text>
+<text xml:space="preserve" text-anchor="start" x="942" y="-667.08" font-family="Courier,monospace" font-size="14.00"> %6 = extractvalue { ptr, i32 } %4, 1</text>
+<text xml:space="preserve" text-anchor="start" x="942" y="-649.83" font-family="Courier,monospace" font-size="14.00"> store i32 %6, ptr %ehselector.slot, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="942" y="-632.58" font-family="Courier,monospace" font-size="14.00"> store ptr %ref.tmp1, ptr %this.addr.i7, align 8</text>
+<text xml:space="preserve" text-anchor="start" x="942" y="-615.33" font-family="Courier,monospace" font-size="14.00"> %this1.i8 = load ptr, ptr %this.addr.i7, align 8</text>
+<text xml:space="preserve" text-anchor="start" x="942" y="-598.08" font-family="Courier,monospace" font-size="14.00"> call void @_ZNSt15__new_allocatorIiED2Ev(ptr noundef nonnull align 1</text>
+<text xml:space="preserve" text-anchor="start" x="942" y="-580.83" font-family="Courier,monospace" font-size="14.00">... dereferenceable(1) %this1.i8) #2</text>
+<text xml:space="preserve" text-anchor="start" x="942" y="-563.58" font-family="Courier,monospace" font-size="14.00"> br label %eh.resume</text>
+</g>
+<!-- Node0x5644ca70b520&#45;&gt;Node0x5644ca70eb30 -->
+<g id="edge2" class="edge">
+<title>Node0x5644ca70b520&#45;&gt;Node0x5644ca70eb30</title>
+<path fill="none" stroke="black" d="M1107.27,-824.02C1116.81,-811.56 1126.13,-799.38 1135.1,-787.67"/>
+<polygon fill="black" stroke="black" points="1137.67,-790.07 1140.97,-780 1132.11,-785.82 1137.67,-790.07"/>
+</g>
+<!-- Node0x5644ca70a440 -->
+<g id="node4" class="node">
+<title>Node0x5644ca70a440</title>
+<polygon fill="#b70d28" fill-opacity="0.439216" stroke="#b70d28" points="274.38,-377.88 274.38,-453.62 636.88,-453.62 636.88,-377.88 274.38,-377.88"/>
+<text xml:space="preserve" text-anchor="start" x="282.38" y="-436.32" font-family="Courier,monospace" font-size="14.00">invoke.cont3:</text>
+<polyline fill="none" stroke="#b70d28" points="274.38,-428.38 636.88,-428.38"/>
+<text xml:space="preserve" text-anchor="start" x="282.38" y="-411.07" font-family="Courier,monospace" font-size="14.00">br i1 %call, label %if.then, label %if.end</text>
+<polyline fill="none" stroke="#b70d28" points="274.38,-403.12 636.88,-403.12"/>
+<text xml:space="preserve" text-anchor="middle" x="365" y="-385.82" font-family="Courier,monospace" font-size="14.00">T</text>
+<polyline fill="none" stroke="#b70d28" points="455.62,-377.88 455.62,-403.12"/>
+<text xml:space="preserve" text-anchor="middle" x="546.25" y="-385.82" font-family="Courier,monospace" font-size="14.00">F</text>
+</g>
+<!-- Node0x5644ca70cb20&#45;&gt;Node0x5644ca70a440 -->
+<g id="edge3" class="edge">
+<title>Node0x5644ca70cb20&#45;&gt;Node0x5644ca70a440</title>
+<path fill="none" stroke="black" d="M521.21,-546.55C506.41,-517.26 491.42,-487.59 479.51,-464.03"/>
+<polygon fill="black" stroke="black" points="482.76,-462.69 475.12,-455.34 476.51,-465.84 482.76,-462.69"/>
+</g>
+<!-- Node0x5644ca70a820 -->
+<g id="node5" class="node">
+<title>Node0x5644ca70a820</title>
+<polygon fill="#f4c5ad" fill-opacity="0.439216" stroke="#3d50c3" points="654.62,-321.5 654.62,-510 1198.62,-510 1198.62,-321.5 654.62,-321.5"/>
+<text xml:space="preserve" text-anchor="start" x="662.62" y="-492.7" font-family="Courier,monospace" font-size="14.00">lpad2:</text>
+<polyline fill="none" stroke="#3d50c3" points="654.62,-484.75 1198.62,-484.75"/>
+<text xml:space="preserve" text-anchor="start" x="662.62" y="-467.45" font-family="Courier,monospace" font-size="14.00">%7 = landingpad { ptr, i32 }</text>
+<text xml:space="preserve" text-anchor="start" x="662.62" y="-450.2" font-family="Courier,monospace" font-size="14.00"> cleanup</text>
+<text xml:space="preserve" text-anchor="start" x="662.62" y="-432.95" font-family="Courier,monospace" font-size="14.00"> %8 = extractvalue { ptr, i32 } %7, 0</text>
+<text xml:space="preserve" text-anchor="start" x="662.62" y="-415.7" font-family="Courier,monospace" font-size="14.00"> store ptr %8, ptr %exn.slot, align 8</text>
+<text xml:space="preserve" text-anchor="start" x="662.62" y="-398.45" font-family="Courier,monospace" font-size="14.00"> %9 = extractvalue { ptr, i32 } %7, 1</text>
+<text xml:space="preserve" text-anchor="start" x="662.62" y="-381.2" font-family="Courier,monospace" font-size="14.00"> store i32 %9, ptr %ehselector.slot, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="662.62" y="-363.95" font-family="Courier,monospace" font-size="14.00"> call void @_ZNSt6vectorIiSaIiEED2Ev(ptr noundef nonnull align 8</text>
+<text xml:space="preserve" text-anchor="start" x="662.62" y="-346.7" font-family="Courier,monospace" font-size="14.00">... dead_on_return(24) dereferenceable(24) %color) #2</text>
+<text xml:space="preserve" text-anchor="start" x="662.62" y="-329.45" font-family="Courier,monospace" font-size="14.00"> br label %eh.resume</text>
+</g>
+<!-- Node0x5644ca70cb20&#45;&gt;Node0x5644ca70a820 -->
+<g id="edge4" class="edge">
+<title>Node0x5644ca70cb20&#45;&gt;Node0x5644ca70a820</title>
+<path fill="none" stroke="black" d="M747.05,-546.55C760.68,-536.7 774.37,-526.8 787.78,-517.11"/>
+<polygon fill="black" stroke="black" points="789.73,-520.02 795.78,-511.33 785.63,-514.35 789.73,-520.02"/>
+</g>
+<!-- Node0x5644ca710de0 -->
+<g id="node9" class="node">
+<title>Node0x5644ca710de0</title>
+<polygon fill="#f6bfa6" fill-opacity="0.439216" stroke="#3d50c3" points="915,-165 915,-284.5 1434.25,-284.5 1434.25,-165 915,-165"/>
+<text xml:space="preserve" text-anchor="start" x="923" y="-267.2" font-family="Courier,monospace" font-size="14.00">eh.resume:</text>
+<polyline fill="none" stroke="#3d50c3" points="915,-259.25 1434.25,-259.25"/>
+<text xml:space="preserve" text-anchor="start" x="923" y="-241.95" font-family="Courier,monospace" font-size="14.00">%exn = load ptr, ptr %exn.slot, align 8</text>
+<text xml:space="preserve" text-anchor="start" x="923" y="-224.7" font-family="Courier,monospace" font-size="14.00"> %sel = load i32, ptr %ehselector.slot, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="923" y="-207.45" font-family="Courier,monospace" font-size="14.00"> %lpad.val = insertvalue { ptr, i32 } poison, ptr %exn, 0</text>
+<text xml:space="preserve" text-anchor="start" x="923" y="-190.2" font-family="Courier,monospace" font-size="14.00"> %lpad.val4 = insertvalue { ptr, i32 } %lpad.val, i32 %sel, 1</text>
+<text xml:space="preserve" text-anchor="start" x="923" y="-172.95" font-family="Courier,monospace" font-size="14.00"> resume { ptr, i32 } %lpad.val4</text>
+</g>
+<!-- Node0x5644ca70eb30&#45;&gt;Node0x5644ca710de0 -->
+<g id="edge8" class="edge">
+<title>Node0x5644ca70eb30&#45;&gt;Node0x5644ca710de0</title>
+<path fill="none" stroke="black" d="M1228.32,-555.19C1227.44,-487.04 1222.83,-398.28 1207.62,-321 1205.99,-312.7 1203.8,-304.14 1201.32,-295.72"/>
+<polygon fill="black" stroke="black" points="1204.67,-294.71 1198.36,-286.19 1197.98,-296.78 1204.67,-294.71"/>
+</g>
+<!-- Node0x5644ca70a7c0 -->
+<g id="node6" class="node">
+<title>Node0x5644ca70a7c0</title>
+<polygon fill="#be242e" fill-opacity="0.439216" stroke="#3d50c3" points="0,-182.25 0,-267.25 387.25,-267.25 387.25,-182.25 0,-182.25"/>
+<text xml:space="preserve" text-anchor="start" x="8" y="-249.95" font-family="Courier,monospace" font-size="14.00">if.then:</text>
+<polyline fill="none" stroke="#3d50c3" points="0,-242 387.25,-242"/>
+<text xml:space="preserve" text-anchor="start" x="8" y="-224.7" font-family="Courier,monospace" font-size="14.00">store i1 true, ptr %retval, align 1</text>
+<text xml:space="preserve" text-anchor="start" x="8" y="-207.45" font-family="Courier,monospace" font-size="14.00"> store i32 1, ptr %cleanup.dest.slot, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="8" y="-190.2" font-family="Courier,monospace" font-size="14.00"> br label %cleanup</text>
+</g>
+<!-- Node0x5644ca70a440&#45;&gt;Node0x5644ca70a7c0 -->
+<g id="edge5" class="edge">
+<title>Node0x5644ca70a440:s0&#45;&gt;Node0x5644ca70a7c0</title>
+<path fill="none" stroke="black" d="M273.38,-390.5C222.92,-390.5 204.38,-327.13 197.56,-278.99"/>
+<polygon fill="black" stroke="black" points="201.06,-278.73 196.33,-269.25 194.12,-279.61 201.06,-278.73"/>
+</g>
+<!-- Node0x5644ca7102a0 -->
+<g id="node7" class="node">
+<title>Node0x5644ca7102a0</title>
+<polygon fill="#be242e" fill-opacity="0.439216" stroke="#3d50c3" points="405,-182.25 405,-267.25 792.25,-267.25 792.25,-182.25 405,-182.25"/>
+<text xml:space="preserve" text-anchor="start" x="413" y="-249.95" font-family="Courier,monospace" font-size="14.00">if.end:</text>
+<polyline fill="none" stroke="#3d50c3" points="405,-242 792.25,-242"/>
+<text xml:space="preserve" text-anchor="start" x="413" y="-224.7" font-family="Courier,monospace" font-size="14.00">store i1 false, ptr %retval, align 1</text>
+<text xml:space="preserve" text-anchor="start" x="413" y="-207.45" font-family="Courier,monospace" font-size="14.00"> store i32 1, ptr %cleanup.dest.slot, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="413" y="-190.2" font-family="Courier,monospace" font-size="14.00"> br label %cleanup</text>
+</g>
+<!-- Node0x5644ca70a440&#45;&gt;Node0x5644ca7102a0 -->
+<g id="edge6" class="edge">
+<title>Node0x5644ca70a440:s1&#45;&gt;Node0x5644ca7102a0</title>
+<path fill="none" stroke="black" d="M546.25,-376.88C546.25,-342.62 558.41,-306.29 571.01,-277.84"/>
+<polygon fill="black" stroke="black" points="574.03,-279.65 575.02,-269.11 567.67,-276.73 574.03,-279.65"/>
+</g>
+<!-- Node0x5644ca70a820&#45;&gt;Node0x5644ca710de0 -->
+<g id="edge9" class="edge">
+<title>Node0x5644ca70a820&#45;&gt;Node0x5644ca710de0</title>
+<path fill="none" stroke="black" d="M1049.54,-321.08C1062.57,-311.15 1075.62,-301.2 1088.11,-291.68"/>
+<polygon fill="black" stroke="black" points="1090.07,-294.59 1095.9,-285.75 1085.82,-289.03 1090.07,-294.59"/>
+</g>
+<!-- Node0x5644ca710240 -->
+<g id="node8" class="node">
+<title>Node0x5644ca710240</title>
+<polygon fill="#b70d28" fill-opacity="0.439216" stroke="#b70d28" points="127.75,-25.75 127.75,-128 663.5,-128 663.5,-25.75 127.75,-25.75"/>
+<text xml:space="preserve" text-anchor="start" x="135.75" y="-110.7" font-family="Courier,monospace" font-size="14.00">cleanup:</text>
+<polyline fill="none" stroke="#b70d28" points="127.75,-102.75 663.5,-102.75"/>
+<text xml:space="preserve" text-anchor="start" x="135.75" y="-85.45" font-family="Courier,monospace" font-size="14.00">call void @_ZNSt6vectorIiSaIiEED2Ev(ptr noundef nonnull align 8</text>
+<text xml:space="preserve" text-anchor="start" x="135.75" y="-68.2" font-family="Courier,monospace" font-size="14.00">... dead_on_return(24) dereferenceable(24) %color) #2</text>
+<text xml:space="preserve" text-anchor="start" x="135.75" y="-50.95" font-family="Courier,monospace" font-size="14.00"> %10 = load i1, ptr %retval, align 1</text>
+<text xml:space="preserve" text-anchor="start" x="135.75" y="-33.7" font-family="Courier,monospace" font-size="14.00"> ret i1 %10</text>
+</g>
+<!-- Node0x5644ca70a7c0&#45;&gt;Node0x5644ca710240 -->
+<g id="edge7" class="edge">
+<title>Node0x5644ca70a7c0&#45;&gt;Node0x5644ca710240</title>
+<path fill="none" stroke="black" d="M251.78,-181.75C271.97,-167.17 294.97,-150.56 316.56,-134.97"/>
+<polygon fill="black" stroke="black" points="318.43,-137.94 324.49,-129.24 314.33,-132.26 318.43,-137.94"/>
+</g>
+<!-- Node0x5644ca7102a0&#45;&gt;Node0x5644ca710240 -->
+<g id="edge10" class="edge">
+<title>Node0x5644ca7102a0&#45;&gt;Node0x5644ca710240</title>
+<path fill="none" stroke="black" d="M540.18,-181.75C519.89,-167.17 496.78,-150.56 475.08,-134.97"/>
+<polygon fill="black" stroke="black" points="477.27,-132.24 467.11,-129.24 473.19,-137.92 477.27,-132.24"/>
+</g>
+</g>
+</svg></div>
+        </div>
+        <div class="exhibit-col">
+          <p class="col-label">stage A</p>
+          <div class="diagram-frame"><svg width="1427pt" height="692pt"
+ viewBox="0.00 0.00 1427.00 692.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 688.25)">
+<title>CFG for &#39;_Z13graphColoringRSt6vectorIS_IiSaIiEESaIS1_EEii&#39; function</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-688.25 1422.5,-688.25 1422.5,4 -4,4"/>
+<text xml:space="preserve" text-anchor="middle" x="709.25" y="-7.95" font-family="Times,serif" font-size="14.00">CFG for &#39;_Z13graphColoringRSt6vectorIS_IiSaIiEESaIS1_EEii&#39; function</text>
+<!-- Node0x55ffc457eed0 -->
+<g id="node1" class="node">
+<title>Node0x55ffc457eed0</title>
+<polygon fill="#b70d28" fill-opacity="0.439216" stroke="#b70d28" points="469,-478 469,-683.75 1136.75,-683.75 1136.75,-478 469,-478"/>
+<text xml:space="preserve" text-anchor="start" x="477" y="-666.45" font-family="Courier,monospace" font-size="14.00">entry:</text>
+<polyline fill="none" stroke="#b70d28" points="469,-658.5 1136.75,-658.5"/>
+<text xml:space="preserve" text-anchor="start" x="477" y="-641.2" font-family="Courier,monospace" font-size="14.00">%color = alloca %&quot;class.std::vector.0&quot;, align 8</text>
+<text xml:space="preserve" text-anchor="start" x="477" y="-623.95" font-family="Courier,monospace" font-size="14.00"> %ref.tmp = alloca i32, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="477" y="-606.7" font-family="Courier,monospace" font-size="14.00"> %ref.tmp1 = alloca %&quot;class.std::allocator.2&quot;, align 1</text>
+<text xml:space="preserve" text-anchor="start" x="477" y="-589.45" font-family="Courier,monospace" font-size="14.00"> %conv = sext i32 %N to i64</text>
+<text xml:space="preserve" text-anchor="start" x="477" y="-572.2" font-family="Courier,monospace" font-size="14.00"> store i32 0, ptr %ref.tmp, align 4</text>
+<text xml:space="preserve" text-anchor="start" x="477" y="-554.95" font-family="Courier,monospace" font-size="14.00"> invoke void @_ZNSt6vectorIiSaIiEEC2EmRKiRKS0_(ptr noundef nonnull align 8</text>
+<text xml:space="preserve" text-anchor="start" x="477" y="-537.7" font-family="Courier,monospace" font-size="14.00">... dereferenceable(24) %color, i64 noundef %conv, ptr noundef nonnull align 4</text>
+<text xml:space="preserve" text-anchor="start" x="477" y="-520.45" font-family="Courier,monospace" font-size="14.00">... dereferenceable(4) %ref.tmp, ptr noundef nonnull align 1 dereferenceable(1)</text>
+<text xml:space="preserve" text-anchor="start" x="477" y="-503.2" font-family="Courier,monospace" font-size="14.00">... %ref.tmp1)</text>
+<text xml:space="preserve" text-anchor="start" x="477" y="-485.95" font-family="Courier,monospace" font-size="14.00"> to label %invoke.cont unwind label %lpad</text>
+</g>
+<!-- Node0x55ffc457f9b0 -->
+<g id="node2" class="node">
+<title>Node0x55ffc457f9b0</title>
+<polygon fill="#b70d28" fill-opacity="0.439216" stroke="#b70d28" points="147,-287 147,-441 814.75,-441 814.75,-287 147,-287"/>
+<text xml:space="preserve" text-anchor="start" x="155" y="-423.7" font-family="Courier,monospace" font-size="14.00">invoke.cont:</text>
+<polyline fill="none" stroke="#b70d28" points="147,-415.75 814.75,-415.75"/>
+<text xml:space="preserve" text-anchor="start" x="155" y="-398.45" font-family="Courier,monospace" font-size="14.00">call void @_ZNSt15__new_allocatorIiED2Ev(ptr noundef nonnull align 1</text>
+<text xml:space="preserve" text-anchor="start" x="155" y="-381.2" font-family="Courier,monospace" font-size="14.00">... dereferenceable(1) %ref.tmp1) #2</text>
+<text xml:space="preserve" text-anchor="start" x="155" y="-363.95" font-family="Courier,monospace" font-size="14.00"> %call = invoke noundef zeroext i1</text>
+<text xml:space="preserve" text-anchor="start" x="155" y="-346.7" font-family="Courier,monospace" font-size="14.00">... @_Z5solveiRSt6vectorIiSaIiEEiiRS_IS1_SaIS1_EE(i32 noundef 0, ptr noundef</text>
+<text xml:space="preserve" text-anchor="start" x="155" y="-329.45" font-family="Courier,monospace" font-size="14.00">... nonnull align 8 dereferenceable(24) %color, i32 noundef %m, i32 noundef %N,</text>
+<text xml:space="preserve" text-anchor="start" x="155" y="-312.2" font-family="Courier,monospace" font-size="14.00">... ptr noundef nonnull align 8 dereferenceable(24) %graph)</text>
+<text xml:space="preserve" text-anchor="start" x="155" y="-294.95" font-family="Courier,monospace" font-size="14.00"> to label %invoke.cont3 unwind label %lpad2</text>
+</g>
+<!-- Node0x55ffc457eed0&#45;&gt;Node0x55ffc457f9b0 -->
+<g id="edge1" class="edge">
+<title>Node0x55ffc457eed0&#45;&gt;Node0x55ffc457f9b0</title>
+<path fill="none" stroke="black" d="M649.89,-477.79C634.71,-467.65 619.43,-457.46 604.59,-447.56"/>
+<polygon fill="black" stroke="black" points="606.94,-444.92 596.68,-442.28 603.05,-450.74 606.94,-444.92"/>
+</g>
+<!-- Node0x55ffc457fe30 -->
+<g id="node3" class="node">
+<title>Node0x55ffc457fe30</title>
+<polygon fill="#f4c5ad" fill-opacity="0.439216" stroke="#3d50c3" points="833.25,-304.25 833.25,-423.75 1418.5,-423.75 1418.5,-304.25 833.25,-304.25"/>
+<text xml:space="preserve" text-anchor="start" x="841.25" y="-406.45" font-family="Courier,monospace" font-size="14.00">lpad:</text>
+<polyline fill="none" stroke="#3d50c3" points="833.25,-398.5 1418.5,-398.5"/>
+<text xml:space="preserve" text-anchor="start" x="841.25" y="-381.2" font-family="Courier,monospace" font-size="14.00">%0 = landingpad { ptr, i32 }</text>
+<text xml:space="preserve" text-anchor="start" x="841.25" y="-363.95" font-family="Courier,monospace" font-size="14.00"> cleanup</text>
+<text xml:space="preserve" text-anchor="start" x="841.25" y="-346.7" font-family="Courier,monospace" font-size="14.00"> call void @_ZNSt15__new_allocatorIiED2Ev(ptr noundef nonnull align 1</text>
+<text xml:space="preserve" text-anchor="start" x="841.25" y="-329.45" font-family="Courier,monospace" font-size="14.00">... dereferenceable(1) %ref.tmp1) #2</text>
+<text xml:space="preserve" text-anchor="start" x="841.25" y="-312.2" font-family="Courier,monospace" font-size="14.00"> br label %eh.resume</text>
+</g>
+<!-- Node0x55ffc457eed0&#45;&gt;Node0x55ffc457fe30 -->
+<g id="edge2" class="edge">
+<title>Node0x55ffc457eed0&#45;&gt;Node0x55ffc457fe30</title>
+<path fill="none" stroke="black" d="M956.33,-477.79C980.55,-461.68 1005,-445.41 1027.51,-430.44"/>
+<polygon fill="black" stroke="black" points="1029.39,-433.39 1035.77,-424.94 1025.51,-427.56 1029.39,-433.39"/>
+</g>
+<!-- Node0x55ffc45803c0 -->
+<g id="node4" class="node">
+<title>Node0x55ffc45803c0</title>
+<polygon fill="#b70d28" fill-opacity="0.439216" stroke="#b70d28" points="0,-147.75 0,-232.75 535.75,-232.75 535.75,-147.75 0,-147.75"/>
+<text xml:space="preserve" text-anchor="start" x="8" y="-215.45" font-family="Courier,monospace" font-size="14.00">invoke.cont3:</text>
+<polyline fill="none" stroke="#b70d28" points="0,-207.5 535.75,-207.5"/>
+<text xml:space="preserve" text-anchor="start" x="8" y="-190.2" font-family="Courier,monospace" font-size="14.00">call void @_ZNSt6vectorIiSaIiEED2Ev(ptr noundef nonnull align 8</text>
+<text xml:space="preserve" text-anchor="start" x="8" y="-172.95" font-family="Courier,monospace" font-size="14.00">... dead_on_return(24) dereferenceable(24) %color) #2</text>
+<text xml:space="preserve" text-anchor="start" x="8" y="-155.7" font-family="Courier,monospace" font-size="14.00"> ret i1 %call</text>
+</g>
+<!-- Node0x55ffc457f9b0&#45;&gt;Node0x55ffc45803c0 -->
+<g id="edge3" class="edge">
+<title>Node0x55ffc457f9b0&#45;&gt;Node0x55ffc45803c0</title>
+<path fill="none" stroke="black" d="M386.21,-286.67C366.64,-270.88 346.52,-254.67 328.56,-240.18"/>
+<polygon fill="black" stroke="black" points="331.08,-237.72 321.1,-234.17 326.69,-243.17 331.08,-237.72"/>
+</g>
+<!-- Node0x55ffc4580480 -->
+<g id="node5" class="node">
+<title>Node0x55ffc4580480</title>
+<polygon fill="#f4c5ad" fill-opacity="0.439216" stroke="#3d50c3" points="553.88,-130.5 553.88,-250 1097.88,-250 1097.88,-130.5 553.88,-130.5"/>
+<text xml:space="preserve" text-anchor="start" x="561.88" y="-232.7" font-family="Courier,monospace" font-size="14.00">lpad2:</text>
+<polyline fill="none" stroke="#3d50c3" points="553.88,-224.75 1097.88,-224.75"/>
+<text xml:space="preserve" text-anchor="start" x="561.88" y="-207.45" font-family="Courier,monospace" font-size="14.00">%1 = landingpad { ptr, i32 }</text>
+<text xml:space="preserve" text-anchor="start" x="561.88" y="-190.2" font-family="Courier,monospace" font-size="14.00"> cleanup</text>
+<text xml:space="preserve" text-anchor="start" x="561.88" y="-172.95" font-family="Courier,monospace" font-size="14.00"> call void @_ZNSt6vectorIiSaIiEED2Ev(ptr noundef nonnull align 8</text>
+<text xml:space="preserve" text-anchor="start" x="561.88" y="-155.7" font-family="Courier,monospace" font-size="14.00">... dead_on_return(24) dereferenceable(24) %color) #2</text>
+<text xml:space="preserve" text-anchor="start" x="561.88" y="-138.45" font-family="Courier,monospace" font-size="14.00"> br label %eh.resume</text>
+</g>
+<!-- Node0x55ffc457f9b0&#45;&gt;Node0x55ffc4580480 -->
+<g id="edge4" class="edge">
+<title>Node0x55ffc457f9b0&#45;&gt;Node0x55ffc4580480</title>
+<path fill="none" stroke="black" d="M634.46,-286.54C655.3,-276.17 676.52,-265.6 696.87,-255.47"/>
+<polygon fill="black" stroke="black" points="698.36,-258.64 705.75,-251.05 695.24,-252.37 698.36,-258.64"/>
+</g>
+<!-- Node0x55ffc4580f80 -->
+<g id="node6" class="node">
+<title>Node0x55ffc4580f80</title>
+<polygon fill="#f6bfa6" fill-opacity="0.439216" stroke="#3d50c3" points="749.25,-25.75 749.25,-93.5 1202.5,-93.5 1202.5,-25.75 749.25,-25.75"/>
+<text xml:space="preserve" text-anchor="start" x="757.25" y="-76.2" font-family="Courier,monospace" font-size="14.00">eh.resume:</text>
+<polyline fill="none" stroke="#3d50c3" points="749.25,-68.25 1202.5,-68.25"/>
+<text xml:space="preserve" text-anchor="start" x="757.25" y="-50.95" font-family="Courier,monospace" font-size="14.00">%.pn = phi { ptr, i32 } [ %1, %lpad2 ], [ %0, %lpad ]</text>
+<text xml:space="preserve" text-anchor="start" x="757.25" y="-33.7" font-family="Courier,monospace" font-size="14.00"> resume { ptr, i32 } %.pn</text>
+</g>
+<!-- Node0x55ffc457fe30&#45;&gt;Node0x55ffc4580f80 -->
+<g id="edge5" class="edge">
+<title>Node0x55ffc457fe30&#45;&gt;Node0x55ffc4580f80</title>
+<path fill="none" stroke="black" d="M1135.87,-303.89C1141.15,-253.52 1140.7,-181.35 1106.88,-130 1099.17,-118.3 1088.81,-108.44 1077.28,-100.16"/>
+<polygon fill="black" stroke="black" points="1079.34,-97.33 1069.08,-94.7 1075.46,-103.15 1079.34,-97.33"/>
+</g>
+<!-- Node0x55ffc4580480&#45;&gt;Node0x55ffc4580f80 -->
+<g id="edge6" class="edge">
+<title>Node0x55ffc4580480&#45;&gt;Node0x55ffc4580f80</title>
+<path fill="none" stroke="black" d="M894.73,-130.21C906.28,-120.31 918.02,-110.24 928.85,-100.95"/>
+<polygon fill="black" stroke="black" points="930.86,-103.84 936.17,-94.67 926.3,-98.52 930.86,-103.84"/>
+</g>
+</g>
+</svg></div>
+        </div>
+      </div>
+      <div class="exhibit-foot">The entry point: construct <code>color(N, 0)</code>, <code>invoke solve(0, &hellip;)</code> (an <code>invoke</code>, not a plain <code>call</code> &mdash; <code>color</code> is a local <code>vector</code> that needs an unwind-driven destructor), return its result. This is the frame a matcher would anchor on first: it's the one that owns the identifiable name and calls into the recursive machinery exactly once.</div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <section>
+    <p class="section-num">05</p>
+    <h2>What's actually new to build</h2>
+    <p>
+      Everything in <code>tsp_pass.cpp</code>'s toolbox &mdash; phi/latch/preheader matching on
+      <code>Loop</code>, <code>operator[]</code> call recognition, <code>stripIntCasts</code>,
+      side-effect gating on non-recognized calls &mdash; carries over directly to the two small
+      loops here. The one genuinely new primitive is detecting the self-recursive edge and its
+      paired assign/backtrack stores:
+    </p>
+    <div class="annot-grid">
+      <div class="annot"><div class="lbl">match target</div><p class="txt">A <code>CallBase</code> in function <code>F</code> whose <code>getCalledFunction() == &amp;F</code>.</p></div>
+      <div class="annot"><div class="lbl">recursion arg</div><p class="txt">One argument to the self-call must be a simple recurrence of a parameter (here, <code>node&nbsp;+&nbsp;1</code>) &mdash; the recursion-depth counter.</p></div>
+      <div class="annot"><div class="lbl">base case</div><p class="txt">An <code>entry</code>-block (or entry-dominating) compare of that same parameter against another parameter or loop-invariant bound, short-circuiting to a success return.</p></div>
+      <div class="annot"><div class="lbl">store pairing</div><p class="txt">A store to some <code>index[depth-param]</code> location strictly before the self-call, and a second store to the <em>same</em> GEP/index strictly after it on the failure edge &mdash; the backtrack invariant.</p></div>
+      <div class="annot"><div class="lbl">candidate loop</div><p class="txt">The self-call and its guarding branch must live inside a <code>Loop</code> whose trip count is a separate parameter (<code>m</code>) from the recursion bound (<code>N</code>) &mdash; that's what distinguishes "try each candidate at this depth" from an unrelated loop.</p></div>
+    </div>
+  </section>
+</div>
+
+<footer>
+  Generated from <code>test/kcolor.cpp</code> via <code>clang -O0 -fno-inline -Xclang -disable-O0-optnone</code> &rarr;
+  <code>llvm-extract</code> &rarr; <code>opt</code> (LLVM 23.0.0git, assertions build) &middot;
+  CFGs rendered with <code>opt -passes=dot-cfg</code> + Graphviz.
+</footer>

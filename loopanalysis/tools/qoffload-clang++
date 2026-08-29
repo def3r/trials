@@ -1,0 +1,298 @@
+#!/usr/bin/env bash
+# qoffload-clang++ - one-command wrapper around the clang -> opt -> clang ->
+# link pipeline that test/integration/run_*.sh each carry out by hand.
+#
+# Usage:
+#   qoffload-clang++ --qpu-pass=<name>[,<name>...] [--qpu-verbose] \
+#       <normal clang++ args...>
+#
+# Available <name>s: maxcut, tsp, kcolor, clique, factor
+#
+# With no --qpu-pass, this is a plain passthrough to clang++ -- opt-in
+# only, by design: silently trying all five passes on every compile risks
+# a lookalike (see e.g. test/clique/longest_path_lookalike.cpp) changing
+# behavior on code nobody meant to offload, and pulls in the full cudaq
+# runtime link even when nothing fires.
+#
+# Why this exists instead of `clang -fpass-plugin=MinPass.so -O1`:
+# clang's -fpass-plugin only auto-inserts a pass into the pipeline if it's
+# registered at a pipeline extension point; these five are registered via
+# registerPipelineParsingCallback, so they only run when explicitly named
+# in a -passes= string (which is what this script builds). More
+# fundamentally, hooking into a standard -O1/-O2 pipeline wouldn't be
+# safe here anyway -- kcolor-pass/clique-pass/factor-pass are actively
+# BROKEN by indvars (it buries the loop-bound argument inside an
+# llvm.smax call, see analysis/clique/clique.md §1c and
+# analysis/factor/factor.md §1c), which standard -O1+ runs. maxcut-pass/
+# tsp-pass, conversely, expect loop-simplify/lcssa/indvars to have run.
+# That's why there are two pipeline "families" below, run as two separate
+# opt invocations, not one merged pipeline string.
+#
+# Known scope limits (v1):
+#   - Only .cpp/.cc/.cxx source inputs; multiple sources are llvm-link'd
+#     together before the QPU passes run.
+#   - Extra clang flags (-std=, -I, -D, ...) are forwarded to the
+#     frontend (source -> IR) step only, not to the backend/link steps --
+#     matches what every test/integration/run_*.sh script already does.
+#   - -c (compile-only) is supported and stops after producing the
+#     object file; anything else (-S, -E, no output requested at all)
+#     falls through to the full compile+link path.
+#
+# No env var below has a fallback default, except CLANG/OPT ("clang++"/
+# "opt", resolved via PATH -- portable by construction). This script runs
+# on whatever machine it's invoked on; assuming an absolute path like
+# /home/<user>/llvm-project exists there is exactly the kind of hidden,
+# unportable assumption that breaks silently -- or worse, "succeeds"
+# against the wrong toolchain -- the moment this leaves the machine it
+# was written on. Every other required variable (including QOFFLOAD_PASS,
+# this project's own built plugin .so -- never assumable via PATH) is
+# checked explicitly and this script refuses to guess.
+
+set -euo pipefail
+
+require_env() {
+  local name="$1"
+  if [[ -z "${!name:-}" ]]; then
+    echo "qoffload-clang++: required environment variable \$$name is not set." >&2
+    echo "  No default is assumed -- see tools/README.md for what it must point to." >&2
+    exit 1
+  fi
+}
+
+# CLANG and OPT are the exceptions with a default: "clang++"/"opt" resolved
+# via PATH are portable by construction (same toolchain install as
+# whatever's on PATH), unlike an absolute /home/<user>/... path -- neither
+# is a machine-specific guess the way the others below would be.
+CLANG="${CLANG:-clang++}"
+OPT="${OPT:-opt}"
+
+# Confirmed working pipelines for whole-translation-unit compiles (no
+# llvm-extract) -- see test/integration/run_clique_integration.sh /
+# run_integration.sh for the empirical source of these exact strings.
+REDUCED_PIPELINE="sroa,mem2reg,simplifycfg,instcombine<no-verify-fixpoint>,simplifycfg,instcombine<no-verify-fixpoint>"
+LOOP_PIPELINE="sroa,mem2reg,loop-simplify,lcssa,indvars,simplifycfg,instcombine<no-verify-fixpoint>,simplifycfg,instcombine<no-verify-fixpoint>"
+
+declare -A PASS_NAME=(   [maxcut]=maxcut-pass [tsp]=tsp-pass [kcolor]=kcolor-pass [clique]=clique-pass [factor]=factor-pass )
+declare -A PASS_FAMILY=( [maxcut]=loop        [tsp]=loop     [kcolor]=reduced     [clique]=reduced     [factor]=reduced )
+declare -A PASS_SYMBOL=( [maxcut]=maxcut_impl [tsp]=tsp_impl [kcolor]=kcolor_impl [clique]=clique_impl [factor]=factor_impl )
+
+QPU_PASSES=()
+VERBOSE=0
+CLANG_ARGS=()
+
+for arg in "$@"; do
+  case "$arg" in
+    --qpu-pass=*)
+      IFS=',' read -ra names <<< "${arg#--qpu-pass=}"
+      for n in "${names[@]}"; do
+        if [[ -z "${PASS_NAME[$n]+x}" ]]; then
+          echo "qoffload-clang++: unknown --qpu-pass name '$n' (expected: maxcut, tsp, kcolor, clique, factor)" >&2
+          exit 1
+        fi
+        QPU_PASSES+=("$n")
+      done
+      ;;
+    --qpu-verbose)
+      VERBOSE=1
+      ;;
+    *)
+      CLANG_ARGS+=("$arg")
+      ;;
+  esac
+done
+
+if [[ ${#QPU_PASSES[@]} -eq 0 ]]; then
+  # No QPU offload requested -- plain passthrough, none of the machinery
+  # below runs at all.
+  exec "$CLANG" "${CLANG_ARGS[@]}"
+fi
+
+# ---- Below: only reached when at least one --qpu-pass was given ----
+
+require_env QOFFLOAD_PASS
+require_env LLVM_LINK
+require_env CUDAQ_DIR
+require_env C2CUDAQ_ROOT
+
+PLUGIN="$QOFFLOAD_PASS"
+LIB="$C2CUDAQ_ROOT/build/libc2cudaq.a"
+
+# Backend detection -- mirrors nvq++'s own query_gpu() + default-target
+# logic exactly (nvq++ script, ~line 156/423-429): prefer the GPU-backed
+# nvidia target (cuStateVec FP32) when a GPU is present and the backend
+# library exists, otherwise fall back to CPU-backed qpp. Without this, a
+# hardcoded -lnvqir-qpp silently runs every kernel call on CPU even on a
+# GPU-equipped machine -- confirmed to make a real difference (see
+# test/integration/run_factor_integration.sh's comment for the measured
+# gap: 46s on GPU vs. 5+ minutes on CPU for the same call).
+gpu_found=false
+if command -v nvidia-smi >/dev/null 2>&1; then
+  if nvidia-smi -L 2>/dev/null | grep -qi "failed\|error"; then
+    gpu_found=false
+  elif [[ "$(nvidia-smi -L 2>/dev/null | wc -l)" -gt 0 ]]; then
+    gpu_found=true
+  fi
+fi
+NVQIR_BACKEND="qpp"
+if [[ "$gpu_found" == true && -f "$CUDAQ_DIR/lib/libnvqir-custatevec-fp32.so" ]]; then
+  NVQIR_BACKEND="custatevec-fp32"
+fi
+
+OUT=""
+COMPILE_ONLY=0
+SOURCES=()
+PASSTHRU=()
+i=0
+n=${#CLANG_ARGS[@]}
+while [[ $i -lt $n ]]; do
+  a="${CLANG_ARGS[$i]}"
+  case "$a" in
+    -o)
+      OUT="${CLANG_ARGS[$((i+1))]}"
+      i=$((i+2))
+      continue
+      ;;
+    -c)
+      COMPILE_ONLY=1
+      i=$((i+1))
+      continue
+      ;;
+    *.cpp|*.cc|*.cxx)
+      SOURCES+=("$a")
+      i=$((i+1))
+      continue
+      ;;
+    *)
+      PASSTHRU+=("$a")
+      i=$((i+1))
+      continue
+      ;;
+  esac
+done
+
+if [[ ${#SOURCES[@]} -eq 0 ]]; then
+  echo "qoffload-clang++: no .cpp/.cc/.cxx source file found in arguments" >&2
+  exit 1
+fi
+if [[ -z "$OUT" ]]; then
+  OUT="a.out"
+  if [[ $COMPILE_ONLY -eq 1 ]]; then
+    base="$(basename "${SOURCES[0]}")"
+    OUT="${base%.*}.o"
+  fi
+fi
+
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+
+REDUCED_NAMES=()
+LOOP_NAMES=()
+for p in "${QPU_PASSES[@]}"; do
+  if [[ "${PASS_FAMILY[$p]}" == "reduced" ]]; then
+    REDUCED_NAMES+=("${PASS_NAME[$p]}")
+  else
+    LOOP_NAMES+=("${PASS_NAME[$p]}")
+  fi
+done
+
+# Step 1: frontend, one .ll per source, llvm-link'd together if more than one.
+IR_FILES=()
+idx=0
+for src in "${SOURCES[@]}"; do
+  f="$WORK/src$idx.ll"
+  "$CLANG" -S -emit-llvm -O0 -fno-inline -Xclang -disable-O0-optnone \
+    -fno-discard-value-names "${PASSTHRU[@]}" "$src" -o "$f"
+  IR_FILES+=("$f")
+  idx=$((idx+1))
+done
+
+CURRENT_IR="$WORK/step0.ll"
+if [[ ${#IR_FILES[@]} -eq 1 ]]; then
+  cp "${IR_FILES[0]}" "$CURRENT_IR"
+else
+  "$LLVM_LINK" "${IR_FILES[@]}" -S -o "$CURRENT_IR"
+fi
+
+# Step 2/3: per family, canonicalize once (pure function-pass pipeline,
+# always safe as a flat list), then apply each requested custom pass as
+# its OWN separate opt invocation, chained one after another.
+#
+# Not combined into one -passes= string per family: kcolor-pass and
+# clique-pass are Module passes (MPM.addPass), while maxcut-pass/tsp-pass/
+# factor-pass are Function passes (FPM.addPass) -- mixing a module-pass
+# name into a pipeline string whose context was already established as
+# function-only (by the canonicalization passes preceding it) fails with
+# "unknown function pass" rather than auto-promoting. Every existing
+# update.py/run_*_integration.sh in this project already avoids this by
+# running canonicalization and the custom pass as separate opt calls;
+# this mirrors that, generalized to a chain of N custom passes instead of
+# always exactly one.
+run_opt_step() {
+  local passes="$1" label="$2"
+  local next="$WORK/step_${label}.ll"
+  local log="$WORK/${label}.stderr"
+  if ! "$OPT" -load-pass-plugin "$PLUGIN" -passes="$passes" "$CURRENT_IR" -S -o "$next" 2>"$log"; then
+    cat "$log" >&2
+    exit 1
+  fi
+  [[ $VERBOSE -eq 1 ]] && cat "$log" >&2
+  CURRENT_IR="$next"
+}
+
+if [[ ${#REDUCED_NAMES[@]} -gt 0 ]]; then
+  run_opt_step "$REDUCED_PIPELINE" "canon_reduced"
+  idx=0
+  for p in "${REDUCED_NAMES[@]}"; do
+    run_opt_step "$p" "reduced$idx"
+    idx=$((idx+1))
+  done
+fi
+
+if [[ ${#LOOP_NAMES[@]} -gt 0 ]]; then
+  run_opt_step "$LOOP_PIPELINE" "canon_loop"
+  idx=0
+  for p in "${LOOP_NAMES[@]}"; do
+    run_opt_step "$p" "loop$idx"
+    idx=$((idx+1))
+  done
+fi
+
+if [[ $VERBOSE -eq 1 ]]; then
+  echo "qoffload-clang++: QPU pass results" >&2
+  for p in "${QPU_PASSES[@]}"; do
+    sym="${PASS_SYMBOL[$p]}"
+    if grep -q "call .*@${sym}(" "$CURRENT_IR"; then
+      echo "  [fired]     $p  (-> @$sym)" >&2
+    else
+      echo "  [no match]  $p" >&2
+    fi
+  done
+fi
+
+# Step 4: backend, IR -> object.
+OBJ="$WORK/out.o"
+"$CLANG" -c "$CURRENT_IR" -o "$OBJ"
+
+if [[ $COMPILE_ONLY -eq 1 ]]; then
+  cp "$OBJ" "$OUT"
+  echo "qoffload-clang++: wrote $OUT" >&2
+  exit 0
+fi
+
+# Step 5: link against libc2cudaq.a + the cudaq runtime. Always pulled in
+# once any --qpu-pass is requested, whether or not it actually fired --
+# bridge.cpp is one translation unit, so even a single bridge symbol
+# reference drags in the whole object's cudaq dependencies.
+"$CLANG" \
+  -Wl,-rpath,"$CUDAQ_DIR/lib" \
+  -L"$CUDAQ_DIR/lib" \
+  "$OBJ" \
+  "$LIB" \
+  -lc++ -lcudaq -lcudaq-logger -lcudaq-common \
+  -lcudaq-ensmallen -lcudaq-nlopt -lcudaq-operator \
+  -lcudaq-mlir-runtime -lcudaq-builder \
+  -lcudaq-em-default -lcudaq-platform-default \
+  -lnvqir -lnvqir-"$NVQIR_BACKEND" \
+  -o "$OUT"
+
+echo "qoffload-clang++: wrote $OUT" >&2

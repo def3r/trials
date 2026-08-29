@@ -1,0 +1,43 @@
+
+=== Soundness: star graph (true max clique=2), request K=3 ===
+  N=4  falsepos=0/10
+  N=6  falsepos=0/10
+  N=8  falsepos=0/10
+  N=10  falsepos=0/10
+
+=== Soundness: empty graph (no edges), request K=2 ===
+  N=4  falsepos=0/10
+  N=8  falsepos=0/10
+  N=12  falsepos=0/10
+
+=== Completeness: complete graph K_N, request K=N, layers=2 ===
+  N=4  pass=10/10  (5.01746s for 10 seeds)
+  N=6  pass=9/10  (6.25917s for 10 seeds)
+  N=8  pass=7/10  (7.97166s for 10 seeds)
+  N=10  pass=7/10  (10.0775s for 10 seeds)
+  N=12  pass=8/10  (12.7854s for 10 seeds)
+  N=14  pass=8/10  (16.9645s for 10 seeds)
+  N=16  pass=7/10  (24.143s for 10 seeds)
+
+=== Completeness: clique of size 4 planted in N-vertex sparse graph, request K=4, layers=2 ===
+  N=6  pass=2/10
+  N=8  pass=0/10
+  N=10  pass=0/10
+  N=12  pass=0/10
+  N=14  pass=1/10
+  N=16  pass=0/10
+
+=== Wall-clock + reliability cliff: complete graph K_N, request K=N, single seed, layers=2 ===
+  N=18  qubits=18  objective=18  time=10.8718s
+  N=20  qubits=20  objective=13  time=52.0072s
+  N=22  qubits=22  objective=21  time=240.913s
+
+=== Layers comparison at N=16 (complete graph, request K=16) ===
+  layers=2  pass=2/5  (13.7565s for 5 seeds)
+  layers=4  pass=2/5  (19.4281s for 5 seeds)
+  layers=6  pass=5/5  (25.0949s for 5 seeds)
+
+=== Default k=-1: what K does it target? ===
+  N=4  (expect K=N-1=3)  objective=4
+  N=6  (expect K=N-1=5)  objective=6
+  N=8  (expect K=N-1=7)  objective=8

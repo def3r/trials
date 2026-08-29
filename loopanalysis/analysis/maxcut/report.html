@@ -1,0 +1,479 @@
+<title>Stress-testing the MaxCut QAOA kernel</title>
+<style>
+  :root {
+    --bg: #eef1f2;
+    --surface: #ffffff;
+    --surface-2: #e3e8ea;
+    --ink: #161c1e;
+    --muted: #57676c;
+    --line: #d2dadd;
+    --accent: #eb6834;
+    --accent-soft: #fbe6db;
+    --series-2: #4a3aa7;
+    --series-2-soft: #e7e3f7;
+    --series-3: #008300;
+    --series-3-soft: #dcf0dc;
+    --good: #2f7d4f;
+    --good-soft: #e1f0e6;
+    --warn: #b5722a;
+    --warn-soft: #f3e6d7;
+    --critical: #b3374a;
+    --critical-soft: #f5e1e5;
+    --shadow: 0 1px 2px rgba(15, 20, 21, 0.06), 0 8px 24px -12px rgba(15, 20, 21, 0.18);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10171a; --surface: #182226; --surface-2: #202c30; --ink: #e6edee;
+      --muted: #8ba0a4; --line: #29383d; --accent: #d95926; --accent-soft: #3a2416;
+      --series-2: #9085e9; --series-2-soft: #262143;
+      --series-3: #4fbf4f; --series-3-soft: #163a16;
+      --good: #5fbf82; --good-soft: #1c3324; --warn: #dba15c; --warn-soft: #3a2c18;
+      --critical: #e0778a; --critical-soft: #3a1f26;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.5);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10171a; --surface: #182226; --surface-2: #202c30; --ink: #e6edee;
+    --muted: #8ba0a4; --line: #29383d; --accent: #d95926; --accent-soft: #3a2416;
+    --series-2: #9085e9; --series-2-soft: #262143;
+    --series-3: #4fbf4f; --series-3-soft: #163a16;
+    --good: #5fbf82; --good-soft: #1c3324; --warn: #dba15c; --warn-soft: #3a2c18;
+    --critical: #e0778a; --critical-soft: #3a1f26;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.5);
+  }
+  :root[data-theme="light"] {
+    --bg: #eef1f2; --surface: #ffffff; --surface-2: #e3e8ea; --ink: #161c1e;
+    --muted: #57676c; --line: #d2dadd; --accent: #eb6834; --accent-soft: #fbe6db;
+    --series-2: #4a3aa7; --series-2-soft: #e7e3f7;
+    --series-3: #008300; --series-3-soft: #dcf0dc;
+    --good: #2f7d4f; --good-soft: #e1f0e6; --warn: #b5722a; --warn-soft: #f3e6d7;
+    --critical: #b3374a; --critical-soft: #f5e1e5;
+    --shadow: 0 1px 2px rgba(15, 20, 21, 0.06), 0 8px 24px -12px rgba(15, 20, 21, 0.18);
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  body { overflow-x: hidden; }
+
+  .wrap { max-width: 880px; margin: 0 auto; padding: 64px 24px 40px; }
+
+  .eyebrow {
+    font-size: 12px; letter-spacing: 0.11em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin: 0 0 14px;
+  }
+  h1 {
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    font-size: clamp(28px, 4.2vw, 42px); line-height: 1.14; font-weight: 600;
+    margin: 0 0 18px; text-wrap: balance; letter-spacing: -0.01em;
+  }
+  h2 {
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    font-size: 25px; font-weight: 600; margin: 0 0 6px; text-wrap: balance;
+  }
+  h3 { font-size: 15px; font-weight: 700; margin: 0 0 4px; }
+  .section-num {
+    font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+    font-size: 12px; color: var(--muted); margin: 0 0 6px;
+  }
+  p { line-height: 1.62; margin: 0 0 16px; max-width: 68ch; }
+  .lede { font-size: 18px; line-height: 1.55; max-width: 62ch; }
+  .muted { color: var(--muted); }
+  code, .mono {
+    font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, "Liberation Mono", monospace;
+    font-size: 0.88em;
+  }
+  code { background: var(--surface-2); border-radius: 4px; padding: 0.12em 0.4em; }
+
+  section { margin: 0 0 64px; }
+  section:first-of-type { margin-top: 0; }
+  .divider { border: none; border-top: 1px solid var(--line); margin: 0 0 48px; }
+
+  .verdict {
+    display: flex; flex-direction: column; gap: 14px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 26px 28px; box-shadow: var(--shadow); margin-top: 28px;
+  }
+  .tag {
+    display: inline-flex; align-items: center; gap: 8px; width: fit-content;
+    font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700;
+    border-radius: 999px; padding: 5px 12px;
+  }
+  .tag::before { content: "●"; font-size: 8px; }
+  .tag.good { color: var(--good); background: var(--good-soft); }
+  .tag.warn { color: var(--warn); background: var(--warn-soft); }
+  .tag.critical { color: var(--critical); background: var(--critical-soft); }
+
+  .stat-row { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 22px; }
+  .stat {
+    flex: 1 1 190px; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 10px; padding: 16px 18px; box-shadow: var(--shadow);
+  }
+  .stat .n {
+    font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+    font-variant-numeric: tabular-nums; font-size: 24px; font-weight: 700; color: var(--ink);
+    display: block; margin-bottom: 4px;
+  }
+  .stat .l { font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+
+  .chart-card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    box-shadow: var(--shadow); padding: 20px 22px 16px; margin-top: 22px;
+  }
+  .chart-card .chart-title { font-size: 13px; font-weight: 700; margin: 0 0 2px; }
+  .chart-card .chart-sub { font-size: 12.5px; color: var(--muted); margin: 0 0 14px; }
+  .chart-frame { overflow-x: auto; }
+  .chart-frame svg { display: block; }
+
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; margin: 10px 0 0; font-size: 12.5px; color: var(--muted); }
+  .legend .item { display: flex; align-items: center; gap: 6px; }
+  .legend .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+  .axis-label { fill: var(--muted); font-size: 10.5px; font-family: -apple-system, sans-serif; }
+  .grid-line { stroke: var(--line); stroke-width: 1; }
+  .data-point { cursor: default; }
+
+  table.datatable { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 14px; }
+  table.datatable th {
+    text-align: left; font-size: 11.5px; letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600; padding: 0 12px 8px; border-bottom: 1px solid var(--line);
+  }
+  table.datatable td {
+    padding: 10px 12px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums;
+  }
+  table.datatable tr:last-child td { border-bottom: none; }
+  .pill {
+    display: inline-block; font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+  }
+  .pill.good { color: var(--good); background: var(--good-soft); }
+  .pill.warn { color: var(--warn); background: var(--warn-soft); }
+  .pill.critical { color: var(--critical); background: var(--critical-soft); }
+
+  .table-scroll { overflow-x: auto; }
+
+  footer {
+    max-width: 880px; margin: 0 auto; padding: 0 24px 64px; color: var(--muted);
+    font-size: 13px; border-top: 1px solid var(--line); padding-top: 20px;
+  }
+
+  @media (max-width: 620px) {
+    .stat-row { flex-direction: column; }
+  }
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Quantum-kernel reliability &middot; c2q_maxcut (QAOA)</p>
+  <h1>The MaxCut kernel is honest by construction &mdash; whether it finds the <em>true</em> cut depends on the graph's shape, not its size.</h1>
+  <p class="lede">
+    Every bit-assignment QAOA can return is already a valid 2-partition, so
+    there's no invalid-answer failure mode to guard against here &mdash;
+    unlike every other kernel in this set. What replaces it: a graph with
+    obvious structure (a ring) gets solved perfectly at every size tested;
+    a graph with none (sparse and irregular) collapses to a coin flip by
+    N=8 and to zero by N=14, at the exact same qubit count.
+  </p>
+
+  <section>
+    <div class="verdict">
+      <span class="tag good">No invalid-answer mode, by construction</span>
+      <p style="margin:0; max-width: 66ch;">
+        0/10 negative objectives in a direct check, and structurally
+        impossible to get more: <code>decode_maxcut</code> just counts cut
+        edges for whatever partition comes back &mdash; there is no
+        constraint a bitstring can violate. That single fact reshapes
+        everything else below: MaxCut's problem was never soundness, only
+        how often (and how fast) it finds the <em>best</em> cut rather
+        than <em>a</em> cut.
+      </p>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat">
+        <span class="n">100%</span>
+        <span class="l">hit rate on ring graphs (cycles), every size tested N=4&ndash;16</span>
+      </div>
+      <div class="stat">
+        <span class="n">0%</span>
+        <span class="l">hit rate on sparse random graphs by N=14, same layers=2 setting</span>
+      </div>
+      <div class="stat">
+        <span class="n">~3&times; cheaper</span>
+        <span class="l">than the clique kernel at matched qubit count (82s vs 240s at N=22)</span>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <section>
+    <p class="section-num">01</p>
+    <h2>Regularity predicts completeness far better than qubit count does</h2>
+    <p>
+      Three graphs, same qubit count at each point on the x-axis, same
+      <code>layers=2</code>, 10 seeds per point, ground truth from an
+      exhaustive classical search (or the closed-form balanced-bipartition
+      formula for the structured cases). <strong>Cycle</strong>: every
+      vertex has degree 2, a trivial two-coloring exists. <strong>Complete</strong>:
+      maximally symmetric, but touching every other vertex. <strong>Random</strong>:
+      sparse (density 0.4), no exploitable symmetry &mdash; the realistic case.
+    </p>
+
+    <div class="chart-card">
+      <p class="chart-title">Hit rate vs. graph size (N qubits)</p>
+      <p class="chart-sub">Share of 10 seeds that found the true maximum cut, layers=2</p>
+      <div class="chart-frame">
+        <svg width="660" height="280" viewBox="0 0 660 280" role="img" aria-label="Line chart of MaxCut hit rate versus graph size, comparing cycle, complete, and random graphs">
+          <line class="grid-line" x1="50" y1="20" x2="610" y2="20" />
+          <line class="grid-line" x1="50" y1="64" x2="610" y2="64" />
+          <line class="grid-line" x1="50" y1="108" x2="610" y2="108" />
+          <line class="grid-line" x1="50" y1="152" x2="610" y2="152" />
+          <line class="grid-line" x1="50" y1="196" x2="610" y2="196" />
+          <line class="grid-line" x1="50" y1="240" x2="610" y2="240" stroke-width="1.5" />
+          <text class="axis-label" x="44" y="24" text-anchor="end">100%</text>
+          <text class="axis-label" x="44" y="68" text-anchor="end">80%</text>
+          <text class="axis-label" x="44" y="112" text-anchor="end">60%</text>
+          <text class="axis-label" x="44" y="156" text-anchor="end">40%</text>
+          <text class="axis-label" x="44" y="200" text-anchor="end">20%</text>
+          <text class="axis-label" x="44" y="244" text-anchor="end">0%</text>
+
+          <text class="axis-label" x="50" y="262" text-anchor="middle">4</text>
+          <text class="axis-label" x="143.3" y="262" text-anchor="middle">6</text>
+          <text class="axis-label" x="236.7" y="262" text-anchor="middle">8</text>
+          <text class="axis-label" x="330" y="262" text-anchor="middle">10</text>
+          <text class="axis-label" x="423.3" y="262" text-anchor="middle">12</text>
+          <text class="axis-label" x="516.7" y="262" text-anchor="middle">14</text>
+          <text class="axis-label" x="610" y="262" text-anchor="middle">16</text>
+          <text class="axis-label" x="330" y="277" text-anchor="middle">vertices (N)</text>
+
+          <!-- cycle series (series-2, violet) -- flat 100% -->
+          <polyline points="50,20 143.3,20 236.7,20 330,20 423.3,20 516.7,20 610,20"
+                    fill="none" stroke="var(--series-2)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" />
+          <g fill="var(--series-2)">
+            <circle class="data-point" cx="50" cy="20" r="4"><title>Cycle N=4: 100% (10/10)</title></circle>
+            <circle class="data-point" cx="143.3" cy="20" r="4"><title>Cycle N=6: 100% (10/10)</title></circle>
+            <circle class="data-point" cx="236.7" cy="20" r="4"><title>Cycle N=8: 100% (10/10)</title></circle>
+            <circle class="data-point" cx="330" cy="20" r="4"><title>Cycle N=10: 100% (10/10)</title></circle>
+            <circle class="data-point" cx="423.3" cy="20" r="4"><title>Cycle N=12: 100% (10/10)</title></circle>
+            <circle class="data-point" cx="516.7" cy="20" r="4"><title>Cycle N=14: 100% (10/10)</title></circle>
+            <circle class="data-point" cx="610" cy="20" r="4"><title>Cycle N=16: 100% (10/10)</title></circle>
+          </g>
+
+          <!-- complete graph series (accent, orange) -->
+          <polyline points="50,20 143.3,20 236.7,64 330,20 423.3,42 516.7,20 610,108"
+                    fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" />
+          <g fill="var(--accent)">
+            <circle class="data-point" cx="50" cy="20" r="4"><title>Complete N=4: 100% (10/10)</title></circle>
+            <circle class="data-point" cx="143.3" cy="20" r="4"><title>Complete N=6: 100% (10/10)</title></circle>
+            <circle class="data-point" cx="236.7" cy="64" r="4"><title>Complete N=8: 80% (8/10)</title></circle>
+            <circle class="data-point" cx="330" cy="20" r="4"><title>Complete N=10: 100% (10/10)</title></circle>
+            <circle class="data-point" cx="423.3" cy="42" r="4"><title>Complete N=12: 90% (9/10)</title></circle>
+            <circle class="data-point" cx="516.7" cy="20" r="4"><title>Complete N=14: 100% (10/10)</title></circle>
+            <circle class="data-point" cx="610" cy="108" r="4"><title>Complete N=16: 60% (6/10)</title></circle>
+          </g>
+
+          <!-- random graph series (series-3, green) -->
+          <polyline points="50,20 143.3,108 236.7,174 330,130 423.3,174 516.7,240 610,240"
+                    fill="none" stroke="var(--series-3)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" />
+          <g fill="var(--series-3)">
+            <circle class="data-point" cx="50" cy="20" r="4"><title>Random N=4: 100% (10/10)</title></circle>
+            <circle class="data-point" cx="143.3" cy="108" r="4"><title>Random N=6: 60% (6/10)</title></circle>
+            <circle class="data-point" cx="236.7" cy="174" r="4"><title>Random N=8: 30% (3/10)</title></circle>
+            <circle class="data-point" cx="330" cy="130" r="4"><title>Random N=10: 50% (5/10)</title></circle>
+            <circle class="data-point" cx="423.3" cy="174" r="4"><title>Random N=12: 30% (3/10)</title></circle>
+            <circle class="data-point" cx="516.7" cy="240" r="4"><title>Random N=14: 0% (0/10)</title></circle>
+            <circle class="data-point" cx="610" cy="240" r="4"><title>Random N=16: 0% (0/10)</title></circle>
+          </g>
+        </svg>
+      </div>
+      <div class="legend">
+        <span class="item"><span class="swatch" style="background:var(--series-2)"></span>Cycle &mdash; ring graph, degree-2 everywhere</span>
+        <span class="item"><span class="swatch" style="background:var(--accent)"></span>Complete &mdash; K<sub>N</sub>, maximally symmetric</span>
+        <span class="item"><span class="swatch" style="background:var(--series-3)"></span>Random &mdash; sparse (density 0.4), no symmetry</span>
+      </div>
+    </div>
+
+    <p style="margin-top:18px;">
+      Same qubit count, three completely different outcomes. The ring
+      graph's QAOA landscape has a symmetry the optimizer can exploit at
+      every scale tested; the random graph's doesn't, and completeness
+      falls off a cliff well before qubit count becomes the limiting
+      factor. This is the same "shape, not size" finding the clique kernel
+      showed &mdash; but starker here, because MaxCut's soundness is
+      trivial by construction, so shape-dependence is the <em>entire</em>
+      story, not one factor among several.
+    </p>
+  </section>
+
+  <hr class="divider" />
+
+  <section>
+    <p class="section-num">02</p>
+    <h2>Wall-clock cost grows the same way &mdash; but roughly a third as fast as clique's</h2>
+    <p>
+      Complete graph, <code>layers=2</code>, request the balanced-bipartition
+      optimum. N=4&ndash;16 are 10-seed averages; N=18&ndash;22 are
+      single-seed spot checks. All three spot checks <em>missed</em> the
+      true optimum (by 1&ndash;25 cut edges), so the extra minutes past
+      N=16 don't reliably buy a better answer either.
+    </p>
+
+    <div class="chart-card">
+      <p class="chart-title">Wall-clock time per run vs. graph size (log scale)</p>
+      <p class="chart-sub">Complete graph, layers=2</p>
+      <div class="chart-frame">
+        <svg width="660" height="300" viewBox="0 0 660 300" role="img" aria-label="Log-scale line chart of MaxCut wall-clock time versus number of qubits">
+          <line class="grid-line" x1="50" y1="20" x2="610" y2="20" />
+          <line class="grid-line" x1="50" y1="75" x2="610" y2="75" />
+          <line class="grid-line" x1="50" y1="130" x2="610" y2="130" />
+          <line class="grid-line" x1="50" y1="185" x2="610" y2="185" />
+          <line class="grid-line" x1="50" y1="240" x2="610" y2="240" stroke-width="1.5" />
+          <text class="axis-label" x="44" y="24" text-anchor="end">1000s</text>
+          <text class="axis-label" x="44" y="79" text-anchor="end">100s</text>
+          <text class="axis-label" x="44" y="134" text-anchor="end">10s</text>
+          <text class="axis-label" x="44" y="189" text-anchor="end">1s</text>
+          <text class="axis-label" x="44" y="244" text-anchor="end">0.1s</text>
+
+          <text class="axis-label" x="50" y="262" text-anchor="middle">4</text>
+          <text class="axis-label" x="174.4" y="262" text-anchor="middle">8</text>
+          <text class="axis-label" x="298.9" y="262" text-anchor="middle">12</text>
+          <text class="axis-label" x="423.3" y="262" text-anchor="middle">16</text>
+          <text class="axis-label" x="547.8" y="262" text-anchor="middle">20</text>
+          <text class="axis-label" x="610" y="262" text-anchor="middle">22</text>
+          <text class="axis-label" x="330" y="277" text-anchor="middle">qubits (N)</text>
+
+          <rect x="423.3" y="15" width="186.7" height="230" fill="var(--warn-soft)" opacity="0.5" />
+          <text class="axis-label" x="517" y="34" text-anchor="middle" fill="var(--warn)" font-weight="700">multi-seed testing stopped here</text>
+
+          <polyline points="50,203.2 112.2,198.4 174.4,192.2 236.7,187.0 298.9,181.4 361.1,175.1 423.3,167.0 485.6,129.6 547.8,91.3 610,79.6"
+                    fill="none" stroke="var(--critical)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" />
+          <g fill="var(--critical)">
+            <circle class="data-point" cx="50" cy="203.2" r="4"><title>N=4: 0.47s avg/seed</title></circle>
+            <circle class="data-point" cx="112.2" cy="198.4" r="4"><title>N=6: 0.57s avg/seed</title></circle>
+            <circle class="data-point" cx="174.4" cy="192.2" r="4"><title>N=8: 0.74s avg/seed</title></circle>
+            <circle class="data-point" cx="236.7" cy="187.0" r="4"><title>N=10: 0.92s avg/seed</title></circle>
+            <circle class="data-point" cx="298.9" cy="181.4" r="4"><title>N=12: 1.16s avg/seed</title></circle>
+            <circle class="data-point" cx="361.1" cy="175.1" r="4"><title>N=14: 1.52s avg/seed</title></circle>
+            <circle class="data-point" cx="423.3" cy="167.0" r="4"><title>N=16: 2.12s avg/seed</title></circle>
+            <circle class="data-point" cx="485.6" cy="129.6" r="5"><title>N=18: 10.15s (single seed) -- missed optimum (56 vs 81)</title></circle>
+            <circle class="data-point" cx="547.8" cy="91.3" r="5"><title>N=20: 50.48s (single seed) -- missed optimum (99 vs 100)</title></circle>
+            <circle class="data-point" cx="610" cy="79.6" r="5"><title>N=22: 82.37s (single seed) -- missed optimum (117 vs 121)</title></circle>
+          </g>
+        </svg>
+      </div>
+      <div class="legend">
+        <span class="item"><span class="swatch" style="background:var(--critical)"></span>Time per run (larger markers = single-seed spot check, not averaged)</span>
+      </div>
+    </div>
+
+    <p style="margin-top:18px;">
+      Same exponential shape seen in every kernel tested so far &mdash;
+      but MaxCut reaches N=22 in 82 seconds where clique needed 240
+      seconds for the same N. The QUBO here has no penalty terms (any
+      bitstring is valid), which means a simpler cost Hamiltonian and,
+      apparently, a real wall-clock advantage &mdash; not just a
+      correctness one.
+    </p>
+  </section>
+
+  <hr class="divider" />
+
+  <section>
+    <p class="section-num">03</p>
+    <h2>Unlike clique, more QAOA depth does <em>not</em> reliably rescue the hard case</h2>
+    <p>
+      Clique's stress test found that tripling <code>layers</code> turned
+      a 40% hit rate into 100% at fixed N, for under 2&times; the time.
+      Testing the same lever here, on the random graph at N=14 (the point
+      where completeness had just collapsed to near-zero above): it does
+      not repeat. 5 seeds per bar.
+    </p>
+
+    <div class="chart-card">
+      <p class="chart-title">Hit rate vs. QAOA depth at fixed N=14</p>
+      <p class="chart-sub">Random sparse graph (density 0.4), same instance as &sect;01</p>
+      <div class="chart-frame">
+        <svg width="400" height="260" viewBox="0 0 400 260" role="img" aria-label="Bar chart showing hit rate at layers 2, 4, and 6 for the random graph case, staying low throughout">
+          <line class="grid-line" x1="50" y1="20" x2="370" y2="20" />
+          <line class="grid-line" x1="50" y1="64" x2="370" y2="64" />
+          <line class="grid-line" x1="50" y1="108" x2="370" y2="108" />
+          <line class="grid-line" x1="50" y1="152" x2="370" y2="152" />
+          <line class="grid-line" x1="50" y1="196" x2="370" y2="196" stroke-width="1.5" />
+          <text class="axis-label" x="44" y="24" text-anchor="end">100%</text>
+          <text class="axis-label" x="44" y="68" text-anchor="end">75%</text>
+          <text class="axis-label" x="44" y="112" text-anchor="end">50%</text>
+          <text class="axis-label" x="44" y="156" text-anchor="end">25%</text>
+          <text class="axis-label" x="44" y="200" text-anchor="end">0%</text>
+
+          <!-- layers=2: 20% -->
+          <rect x="80" y="160.8" width="70" height="35.2" rx="3" fill="var(--critical)"><title>layers=2: 20% (1/5), 4.51s for 5 seeds</title></rect>
+          <text class="axis-label" x="115" y="213" text-anchor="middle" fill="var(--ink)" font-weight="600">2</text>
+          <text class="axis-label" x="115" y="150" text-anchor="middle" fill="var(--ink)" font-weight="700">20%</text>
+
+          <!-- layers=4: 40% -->
+          <rect x="185" y="125.6" width="70" height="70.4" rx="3" fill="var(--warn)"><title>layers=4: 40% (2/5), 6.01s for 5 seeds</title></rect>
+          <text class="axis-label" x="220" y="213" text-anchor="middle" fill="var(--ink)" font-weight="600">4</text>
+          <text class="axis-label" x="220" y="115" text-anchor="middle" fill="var(--ink)" font-weight="700">40%</text>
+
+          <!-- layers=6: 20% -->
+          <rect x="290" y="160.8" width="70" height="35.2" rx="3" fill="var(--critical)"><title>layers=6: 20% (1/5), 7.23s for 5 seeds</title></rect>
+          <text class="axis-label" x="325" y="213" text-anchor="middle" fill="var(--ink)" font-weight="600">6</text>
+          <text class="axis-label" x="325" y="150" text-anchor="middle" fill="var(--ink)" font-weight="700">20%</text>
+
+          <text class="axis-label" x="220" y="240" text-anchor="middle">QAOA layers</text>
+        </svg>
+      </div>
+    </div>
+
+    <p style="margin-top:18px;">
+      20% &rarr; 40% &rarr; 20% &mdash; noise around a low baseline, not a
+      trend. Depth cost the same roughly-linear amount it did for clique
+      (7.2s vs 4.5s, about 1.6&times;), but bought nothing durable in
+      return. The two kernels' QUBO landscapes respond differently to
+      extra circuit depth, and this specific graph instance's difficulty
+      isn't a depth problem the way clique's was &mdash; more evidence
+      that instance <em>shape</em>, not a single dial like layers or
+      qubit count, is what governs whether QAOA converges here.
+    </p>
+  </section>
+
+  <hr class="divider" />
+
+  <section>
+    <p class="section-num">04</p>
+    <h2>Practical limits, summed up</h2>
+    <table class="datatable">
+      <thead><tr><th>Regime</th><th>N (qubits)</th><th>Verdict</th></tr></thead>
+      <tbody>
+        <tr><td>Reliable, structured graphs</td><td>&le; 16 (tested ceiling)</td><td><span class="pill good">cycle graphs: 100% throughout</span></td></tr>
+        <tr><td>Usable, needs care</td><td>&le; 10&ndash;12</td><td><span class="pill warn">complete graphs: 80&ndash;100%; random graphs: 30&ndash;60%</span></td></tr>
+        <tr><td>Unreliable</td><td>14&ndash;16</td><td><span class="pill critical">random-graph hit rate reaches 0%; extra depth didn't fix it</span></td></tr>
+        <tr><td>Impractical</td><td>18&ndash;22</td><td><span class="pill critical">10&ndash;82s per run, single spot checks all missed the true optimum</span></td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:18px;">
+      No soundness axis to report here &mdash; that's the one respect in
+      which this is the simplest kernel of the four QAOA-based ones
+      evaluated so far. What replaces it is a completeness story that's
+      more sensitive to graph <em>shape</em> than any other kernel tested:
+      a structured instance solves perfectly at sizes where an irregular
+      one has already collapsed to 0%, and unlike clique, adding QAOA
+      depth doesn't reliably close that gap. Any bridge built on this
+      kernel should weight graph regularity, not just node count, when
+      deciding whether to trust a kernel-first attempt over a classical
+      fallback.
+    </p>
+  </section>
+</div>
+
+<footer>
+  Generated via <code>analysis/maxcut/maxcut_stress.cpp</code>, compiled with
+  <code>nvq++</code>, linked against <code>libc2cudaq.a</code> &middot;
+  <code>nvidia</code> target (cuStateVec, FP32, GPU-backed &mdash;
+  <code>nvq++</code>'s own default whenever a CUDA GPU is present; earlier
+  reports in this project mislabeled this as "qpp-cpu"/CPU), COBYLA
+  optimizer, seeds 0&ndash;9 per data point unless noted as a single-seed
+  spot check.
+</footer>

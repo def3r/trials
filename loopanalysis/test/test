@@ -1,0 +1,28 @@
+#!/bin/bash
+
+testdir=$PWD
+builddir=../build/
+name="${1%.*}"
+flags="-O0 -Xclang -disable-O0-optnone"
+
+if [ -z "$1" ]; then
+  echo "Use"
+  echo "specify a .c file to test [OR] all"
+  echo "test file.c \"clang-flags\" "
+  echo "  default clang flags: ${flags}"
+  exit 1
+fi
+
+cd $builddir
+make -j$(nproc)
+status=$?
+if [ $status -ne 0 ]; then
+  echo "failed to build pass"
+  exit $status
+fi
+cd $testdir
+
+[ ! -z "$2" ] && flags=$2
+
+clang -emit-llvm -S $flags ${name}.c
+opt -load-pass-plugin=../build/MinPass.so -passes="min-pass" -disable-output ${name}.ll

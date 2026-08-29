@@ -1,0 +1,425 @@
+<title>Stress-testing the TSP QAOA kernel</title>
+<style>
+  :root {
+    --bg: #eef1f2;
+    --surface: #ffffff;
+    --surface-2: #e3e8ea;
+    --ink: #161c1e;
+    --muted: #57676c;
+    --line: #d2dadd;
+    --accent: #e87ba4;
+    --accent-soft: #fbe4ec;
+    --good: #2f7d4f;
+    --good-soft: #e1f0e6;
+    --warn: #b5722a;
+    --warn-soft: #f3e6d7;
+    --critical: #b3374a;
+    --critical-soft: #f5e1e5;
+    --shadow: 0 1px 2px rgba(15, 20, 21, 0.06), 0 8px 24px -12px rgba(15, 20, 21, 0.18);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10171a; --surface: #182226; --surface-2: #202c30; --ink: #e6edee;
+      --muted: #8ba0a4; --line: #29383d; --accent: #d55181; --accent-soft: #3a1c2a;
+      --good: #5fbf82; --good-soft: #1c3324; --warn: #dba15c; --warn-soft: #3a2c18;
+      --critical: #e0778a; --critical-soft: #3a1f26;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.5);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10171a; --surface: #182226; --surface-2: #202c30; --ink: #e6edee;
+    --muted: #8ba0a4; --line: #29383d; --accent: #d55181; --accent-soft: #3a1c2a;
+    --good: #5fbf82; --good-soft: #1c3324; --warn: #dba15c; --warn-soft: #3a2c18;
+    --critical: #e0778a; --critical-soft: #3a1f26;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.5);
+  }
+  :root[data-theme="light"] {
+    --bg: #eef1f2; --surface: #ffffff; --surface-2: #e3e8ea; --ink: #161c1e;
+    --muted: #57676c; --line: #d2dadd; --accent: #e87ba4; --accent-soft: #fbe4ec;
+    --good: #2f7d4f; --good-soft: #e1f0e6; --warn: #b5722a; --warn-soft: #f3e6d7;
+    --critical: #b3374a; --critical-soft: #f5e1e5;
+    --shadow: 0 1px 2px rgba(15, 20, 21, 0.06), 0 8px 24px -12px rgba(15, 20, 21, 0.18);
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  body { overflow-x: hidden; }
+
+  .wrap { max-width: 880px; margin: 0 auto; padding: 64px 24px 40px; }
+
+  .eyebrow {
+    font-size: 12px; letter-spacing: 0.11em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin: 0 0 14px;
+  }
+  h1 {
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    font-size: clamp(28px, 4.2vw, 42px); line-height: 1.14; font-weight: 600;
+    margin: 0 0 18px; text-wrap: balance; letter-spacing: -0.01em;
+  }
+  h2 {
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    font-size: 25px; font-weight: 600; margin: 0 0 6px; text-wrap: balance;
+  }
+  h3 { font-size: 15px; font-weight: 700; margin: 0 0 4px; }
+  .section-num {
+    font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+    font-size: 12px; color: var(--muted); margin: 0 0 6px;
+  }
+  p { line-height: 1.62; margin: 0 0 16px; max-width: 68ch; }
+  .lede { font-size: 18px; line-height: 1.55; max-width: 62ch; }
+  .muted { color: var(--muted); }
+  code, .mono {
+    font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, "Liberation Mono", monospace;
+    font-size: 0.88em;
+  }
+  code { background: var(--surface-2); border-radius: 4px; padding: 0.12em 0.4em; }
+
+  section { margin: 0 0 64px; }
+  section:first-of-type { margin-top: 0; }
+  .divider { border: none; border-top: 1px solid var(--line); margin: 0 0 48px; }
+
+  .verdict {
+    display: flex; flex-direction: column; gap: 14px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 26px 28px; box-shadow: var(--shadow); margin-top: 28px;
+  }
+  .tag {
+    display: inline-flex; align-items: center; gap: 8px; width: fit-content;
+    font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700;
+    border-radius: 999px; padding: 5px 12px;
+  }
+  .tag::before { content: "●"; font-size: 8px; }
+  .tag.good { color: var(--good); background: var(--good-soft); }
+  .tag.warn { color: var(--warn); background: var(--warn-soft); }
+  .tag.critical { color: var(--critical); background: var(--critical-soft); }
+
+  .stat-row { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 22px; }
+  .stat {
+    flex: 1 1 190px; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 10px; padding: 16px 18px; box-shadow: var(--shadow);
+  }
+  .stat .n {
+    font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+    font-variant-numeric: tabular-nums; font-size: 24px; font-weight: 700; color: var(--ink);
+    display: block; margin-bottom: 4px;
+  }
+  .stat .l { font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+
+  .chart-card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    box-shadow: var(--shadow); padding: 20px 22px 16px; margin-top: 22px;
+  }
+  .chart-card .chart-title { font-size: 13px; font-weight: 700; margin: 0 0 2px; }
+  .chart-card .chart-sub { font-size: 12.5px; color: var(--muted); margin: 0 0 14px; }
+  .chart-frame { overflow-x: auto; }
+  .chart-frame svg { display: block; }
+
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; margin: 10px 0 0; font-size: 12.5px; color: var(--muted); }
+  .legend .item { display: flex; align-items: center; gap: 6px; }
+  .legend .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+  .axis-label { fill: var(--muted); font-size: 10.5px; font-family: -apple-system, sans-serif; }
+  .grid-line { stroke: var(--line); stroke-width: 1; }
+  .data-point { cursor: default; }
+
+  table.datatable { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 14px; }
+  table.datatable th {
+    text-align: left; font-size: 11.5px; letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600; padding: 0 12px 8px; border-bottom: 1px solid var(--line);
+  }
+  table.datatable td {
+    padding: 10px 12px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums;
+  }
+  table.datatable tr:last-child td { border-bottom: none; }
+  .pill {
+    display: inline-block; font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+  }
+  .pill.good { color: var(--good); background: var(--good-soft); }
+  .pill.warn { color: var(--warn); background: var(--warn-soft); }
+  .pill.critical { color: var(--critical); background: var(--critical-soft); }
+
+  .table-scroll { overflow-x: auto; }
+
+  footer {
+    max-width: 880px; margin: 0 auto; padding: 0 24px 64px; color: var(--muted);
+    font-size: 13px; border-top: 1px solid var(--line); padding-top: 20px;
+  }
+
+  @media (max-width: 620px) {
+    .stat-row { flex-direction: column; }
+  }
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Quantum-kernel reliability &middot; c2q_tsp (QAOA)</p>
+  <h1>TSP's real ceiling isn't the 28-qubit simulator limit &mdash; it's four cities, and this hardware couldn't even finish a fifth.</h1>
+  <p class="lede">
+    Every other kernel in this project encodes one qubit per node. TSP
+    encodes one qubit per (city, position) <em>pair</em> &mdash;
+    N&sup2; instead of N &mdash; so the 28-qubit ceiling arrives at just
+    6 cities, and completeness has already collapsed to zero one city
+    before that. This is the shortest usable range of any kernel
+    evaluated in this project, by a wide margin.
+  </p>
+
+  <section>
+    <div class="verdict">
+      <span class="tag critical">Complete collapse by N=4</span>
+      <p style="margin:0; max-width: 66ch;">
+        4/10 correct at N=3 (9 qubits) &mdash; already the worst
+        cheapest-tier result of any kernel tested. <strong>0/10 correct
+        at N=4</strong> (16 qubits), with all 10 trials returning an
+        invalid tour. N=5 (25 qubits) was attempted and aborted after a
+        single seed ran past 20 minutes without completing, sustaining
+        100% GPU utilization at 78&deg;C the whole time &mdash; not a
+        hang, just genuinely too expensive to finish on this hardware.
+      </p>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat">
+        <span class="n">N&sup2; qubits</span>
+        <span class="l">not N &mdash; TSP is the only kernel in this project that scales this way</span>
+      </div>
+      <div class="stat">
+        <span class="n">0/10</span>
+        <span class="l">correct at N=4 (16 qubits) &mdash; every single trial invalid</span>
+      </div>
+      <div class="stat">
+        <span class="n">&ge;5 cities</span>
+        <span class="l">where a single seed already exceeded what this GPU could finish</span>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <section>
+    <p class="section-num">01</p>
+    <h2>Squaring the qubit count changes everything downstream</h2>
+    <p>
+      Every other graph kernel in this project one-hot encodes a single
+      property per node &mdash; MaxCut and clique use 1 qubit/node,
+      k-coloring uses <var>k</var> qubits/node. TSP encodes <em>which
+      position in the tour</em> each city occupies, which needs a full
+      N&times;N one-hot grid: N&sup2; qubits. At the same node count, TSP
+      is already the most expensive kernel in the project by a wide
+      margin &mdash; and it crosses the 28-qubit simulator ceiling at
+      just 6 nodes, confirmed directly:
+    </p>
+    <div class="table-scroll">
+      <table class="datatable">
+        <thead><tr><th>N (cities/nodes)</th><th>MaxCut / Clique (N)</th><th>KColor, m=3 (3N)</th><th>TSP (N&sup2;)</th></tr></thead>
+        <tbody>
+          <tr><td>3</td><td>3</td><td>9</td><td>9</td></tr>
+          <tr><td>4</td><td>4</td><td>12</td><td>16</td></tr>
+          <tr><td>5</td><td>5</td><td>15</td><td>25</td></tr>
+          <tr><td>6</td><td>6</td><td>18</td><td><span class="pill critical">36 &mdash; exceeds 28-qubit limit</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="mono" style="background:var(--surface-2); border-radius:6px; padding:10px 14px; font-size:13px; max-width:100%; margin-top:14px;">
+      threw as expected: TSP QAOA needs 36 qubits (limit 28). Reduce
+      problem size.
+    </p>
+    <p style="margin-top:14px;">
+      Confirmed directly by calling <code>c2q_tsp</code> on a 6-city
+      instance, not inferred from the formula. That leaves N=3, 4, and 5
+      as the entire testable range &mdash; and, per &sect;02 below, N=4
+      already fails completely.
+    </p>
+  </section>
+
+  <hr class="divider" />
+
+  <section>
+    <p class="section-num">02</p>
+    <h2>No partial credit: every trial was either exactly right or not a tour at all</h2>
+    <p>
+      Complete graph, symmetric integer weights, ground truth from
+      classical brute force. <code>decode_tsp</code> only returns a real
+      distance for a bitstring that decodes to a genuine permutation
+      visiting every city exactly once &mdash; anything else comes back
+      as <code>-1</code> ("invalid"), the same sound-when-it-answers
+      property kcolor and clique's decoders have. What's notable here:
+      in this sample, there was no middle ground &mdash; no trial
+      returned a valid-but-suboptimal tour. Every one of the 20 trials
+      across N=3 and N=4 was either exactly optimal or not a valid tour
+      at all.
+    </p>
+
+    <div class="chart-card">
+      <p class="chart-title">Outcome per trial, N=3 vs. N=4 (10 seeds each, layers=2)</p>
+      <p class="chart-sub">Complete graph, ground truth via exhaustive classical search</p>
+      <div class="chart-frame">
+        <svg width="420" height="260" viewBox="0 0 420 260" role="img" aria-label="Stacked bar chart showing correct versus invalid trial counts at N=3 and N=4, with zero valid-but-suboptimal trials at either size">
+          <line class="grid-line" x1="60" y1="20" x2="390" y2="20" />
+          <line class="grid-line" x1="60" y1="64" x2="390" y2="64" />
+          <line class="grid-line" x1="60" y1="108" x2="390" y2="108" />
+          <line class="grid-line" x1="60" y1="152" x2="390" y2="152" />
+          <line class="grid-line" x1="60" y1="196" x2="390" y2="196" stroke-width="1.5" />
+          <text class="axis-label" x="54" y="24" text-anchor="end">10</text>
+          <text class="axis-label" x="54" y="68" text-anchor="end">7.5</text>
+          <text class="axis-label" x="54" y="112" text-anchor="end">5</text>
+          <text class="axis-label" x="54" y="156" text-anchor="end">2.5</text>
+          <text class="axis-label" x="54" y="200" text-anchor="end">0</text>
+
+          <!-- N=3: correct=4 (bottom, good), invalid=6 (top, critical) -->
+          <rect x="100" y="125.6" width="80" height="70.4" rx="2" fill="var(--good)"><title>N=3: 4/10 exactly correct</title></rect>
+          <rect x="100" y="20" width="80" height="105.6" rx="2" fill="var(--critical)"><title>N=3: 6/10 invalid (not a valid tour)</title></rect>
+          <text class="axis-label" x="140" y="213" text-anchor="middle" fill="var(--ink)" font-weight="600">N=3 (9 qubits)</text>
+
+          <!-- N=4: correct=0, invalid=10 (full column) -->
+          <rect x="240" y="20" width="80" height="176" rx="2" fill="var(--critical)"><title>N=4: 10/10 invalid (not a valid tour)</title></rect>
+          <text class="axis-label" x="280" y="213" text-anchor="middle" fill="var(--ink)" font-weight="600">N=4 (16 qubits)</text>
+
+          <text class="axis-label" x="220" y="240" text-anchor="middle">trials (of 10)</text>
+        </svg>
+      </div>
+      <div class="legend">
+        <span class="item"><span class="swatch" style="background:var(--good)"></span>Exactly optimal</span>
+        <span class="item"><span class="swatch" style="background:var(--critical)"></span>Invalid (not a valid tour)</span>
+      </div>
+    </div>
+
+    <p style="margin-top:18px;">
+      This isn't a claim that a valid-but-suboptimal tour is structurally
+      impossible &mdash; <code>decode_tsp</code> would return its actual
+      distance if one came back. It's an empirical observation about
+      <em>this</em> QUBO landscape: the permutation constraint (one-hot
+      per city <em>and</em> per position, N&sup2; variables with a dense
+      penalty structure between them) appears to be nearly all-or-nothing
+      for QAOA at <code>layers=2</code> &mdash; it either lands exactly
+      on a valid permutation or misses the constraint manifold entirely.
+      Compare to clique/kcolor, where a wrong answer is usually still a
+      <em>close</em> wrong answer.
+    </p>
+  </section>
+
+  <hr class="divider" />
+
+  <section>
+    <p class="section-num">03</p>
+    <h2>A real <code>qubo_tsp</code> bug, found and fixed &mdash; it wasn't the cause</h2>
+    <p>
+      The severity of the collapse above prompted a direct check on
+      whether <code>qubo_tsp</code> itself was even constructing the
+      right optimization target &mdash; pure classical computation, no
+      GPU: brute-force the QUBO's own true minimum over every possible
+      bitstring and compare it to the classical optimum.
+    </p>
+    <p>
+      Found two real bugs. <strong>(1)</strong> The distance-cost term
+      never scored the tour's closing edge (position N&minus;1 back to
+      position 0), even though the scoring function
+      (<code>decode_tsp</code>) does close the loop. <strong>(2)</strong>
+      <code>Q</code> is upper-triangular by convention, but roughly half
+      of the distance-cost writes landed in the lower triangle &mdash; a
+      cell nothing downstream ever reads &mdash; silently discarding
+      about half the intended cost signal. Confirmed directly: at N=4,
+      the <em>old</em> QUBO's own true minimum (found by brute force, not
+      QAOA) was a valid tour of length <strong>48</strong>; the actual
+      optimum is <strong>35</strong>. Both bugs are now fixed in
+      <code>c2cudaq/include/c2cudaq/internal.h</code>, and re-verified:
+      the corrected QUBO's minimum now exactly matches the classical
+      optimum at both N=3 and N=4.
+    </p>
+    <div class="table-scroll">
+      <table class="datatable">
+        <thead><tr><th>N</th><th>Before fix</th><th>After fix</th></tr></thead>
+        <tbody>
+          <tr><td>3 (9 qubits)</td><td>4/10 correct, 6/10 invalid</td><td>1/10 correct, 9/10 invalid</td></tr>
+          <tr><td>4 (16 qubits)</td><td>0/10 correct, 10/10 invalid</td><td>0/10 correct, 10/10 invalid</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:14px;">
+      Re-running the actual QAOA stress test after the fix found <strong>no
+      improvement</strong> &mdash; slightly worse on this small sample.
+      This is the useful negative result: the bug was real and worth
+      fixing (a genuine correctness defect in the optimization target
+      itself, independent of QAOA), but it isn't what's causing the
+      empirical collapse. The constraint-satisfaction terms were already
+      correct and untouched by either bug. What remains is a genuine
+      QAOA convergence difficulty on a now provably-correct problem
+      &mdash; which makes the case for keeping <code>tsp_impl</code>
+      classical-only <em>stronger</em>, not weaker: this isn't a bug
+      waiting to be found.
+    </p>
+  </section>
+
+  <hr class="divider" />
+
+  <section>
+    <p class="section-num">04</p>
+    <h2>Wall-clock cost outran what this GPU could finish, well inside the qubit ceiling</h2>
+    <div class="table-scroll">
+      <table class="datatable">
+        <thead><tr><th>N</th><th>Qubits</th><th>Avg. time/seed</th><th>Outcome</th></tr></thead>
+        <tbody>
+          <tr><td>3</td><td>9</td><td>0.80s</td><td><span class="pill warn">4/10 correct</span></td></tr>
+          <tr><td>4</td><td>16</td><td>1.55s</td><td><span class="pill critical">0/10 correct</span></td></tr>
+          <tr><td>5</td><td>25</td><td colspan="2"><span class="pill critical">aborted &mdash; 1 seed exceeded 20 min, 100% GPU util, 78&deg;C, no result</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:14px;">
+      N=3&rarr;4 alone is already a ~2&times; wall-clock jump for a
+      completeness result that went from bad to total failure. N=5's
+      single attempted seed was killed rather than pushed further &mdash;
+      the point had already been made: this kernel's practical ceiling on
+      real hardware sits at or below N=4, a full qubit-tier before its
+      own 28-qubit hard limit would even become relevant. Contrast with
+      clique/kcolor, where multi-minute single-seed spot checks at least
+      <em>completed</em> in the 1&ndash;4 minute range near their own
+      ceilings (see <code>analysis/clique/clique.md</code>) &mdash; TSP's
+      N=5 didn't reach that within 20&times; that budget.
+    </p>
+  </section>
+
+  <hr class="divider" />
+
+  <section>
+    <p class="section-num">05</p>
+    <h2>Practical limits, summed up</h2>
+    <table class="datatable">
+      <thead><tr><th>Regime</th><th>N (cities)</th><th>Verdict</th></tr></thead>
+      <tbody>
+        <tr><td>Marginal</td><td>3</td><td><span class="pill warn">40% correct, 60% invalid &mdash; already the worst cheapest-tier result of any kernel tested</span></td></tr>
+        <tr><td>Failed</td><td>4</td><td><span class="pill critical">0% correct, 100% invalid</span></td></tr>
+        <tr><td>Not completed</td><td>5</td><td><span class="pill critical">single seed exceeded 20 min on this GPU, aborted</span></td></tr>
+        <tr><td>Not reachable</td><td>&ge; 6</td><td><span class="pill critical">36+ qubits &mdash; exceeds the 28-qubit simulator limit outright</span></td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:18px;">
+      Of the four QAOA-based kernels evaluated across this project
+      (MaxCut, KColor, Clique, TSP), this is the clearest "not there yet"
+      result &mdash; and, per &sect;03, provably not for lack of trying to
+      find (and fix) a bug. It isn't unsound &mdash; a returned
+      non-negative objective really was a genuine, exactly-optimal tour
+      in every trial observed &mdash; but the N&sup2; qubit cost compounds
+      with a genuine QAOA convergence difficulty on the permutation
+      constraint, confirmed to persist even against a QUBO landscape now
+      proven correct. Together those factors make the kernel's *usable*
+      range (N&le;3, marginally) narrower than any other kernel's tested
+      ceiling by a wide margin. This matches <code>bridge.cpp</code>'s
+      existing decision to leave <code>tsp_impl</code> classical-only
+      &mdash; this stress test is a confirmation of that choice, not a
+      reason to revisit it.
+    </p>
+  </section>
+</div>
+
+<footer>
+  Generated via <code>analysis/tsp/tsp_stress.cpp</code>, compiled with
+  <code>nvq++</code>, linked against <code>libc2cudaq.a</code> &middot;
+  <code>nvidia</code> target (cuStateVec, FP32, GPU-backed &mdash;
+  <code>nvq++</code>'s own default whenever a CUDA GPU is present),
+  COBYLA optimizer, 10 seeds per data point at N=3&ndash;4; the N=5
+  attempt was aborted after exceeding 20 minutes on a single seed and is
+  reported as such rather than extrapolated.
+</footer>

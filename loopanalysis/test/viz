@@ -1,0 +1,19 @@
+#!/bin/sh
+
+name="${1%.*}"
+flags="-O0 -Xclang -disable-O0-optnone"
+
+if [ -z "$1" ]; then
+  echo "Use"
+  echo "specify a .c file to visualize"
+  echo "viz file.c \"clang-flags\" "
+  echo "  default clang flags: ${flags}"
+  exit 1
+fi
+
+[ ! -z "$2" ] && flags=$2
+
+clang -emit-llvm -S $flags ${name}.c
+opt -passes=dot-cfg ${name}.ll -disable-output
+dot -Tpng .${name}.dot -o ${name}.png
+zathura ${name}.png

@@ -1,0 +1,9 @@
+{
+  "family": "Factor",
+  "goal": "factor a semiprime into its two prime factors",
+  "description": "Factor 21 = 3 × 7 using Grover's algorithm over a multiplication oracle",
+  "instance": {
+    "n": 12,
+    "bits": 8
+  }
+}

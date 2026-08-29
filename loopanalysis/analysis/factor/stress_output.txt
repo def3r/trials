@@ -1,0 +1,64 @@
+=== factor_fast.cpp output ===
+
+=== Tier 1: n=4-7, 9 qubits ===
+n=4 (composite)  a=2 b=2  OK  time=0.114875s
+n=5 (prime)  a=1 b=5  OK  time=0.00164902s
+n=6 (composite)  a=2 b=3  OK  time=0.00156519s
+n=7 (prime)  a=1 b=7  OK  time=0.0015459s
+
+=== Tier 2: n=8-15, 13 qubits ===
+n=8 (composite)  a=2 b=4  OK  time=0.00305804s
+n=9 (composite)  a=3 b=3  OK  time=0.00299666s
+n=11 (prime)  a=1 b=11  OK  time=0.00293938s
+n=13 (prime)  a=1 b=13  OK  time=0.00292901s
+n=14 (composite)  a=2 b=7  OK  time=0.00297925s
+n=15 (composite)  a=3 b=5  OK  time=0.00301329s
+
+=== Tier 3: n=16-31, 17 qubits ===
+n=16 (composite)  a=2 b=8  OK  time=0.0139212s
+n=17 (prime)  a=1 b=17  OK  time=0.0136784s
+n=21 (composite)  a=3 b=7  OK  time=0.0136092s
+n=25 (composite)  a=5 b=5  OK  time=0.0135724s
+n=29 (prime)  a=1 b=29  OK  time=0.0134991s
+n=31 (prime)  a=1 b=31  OK  time=0.0133963s
+
+=== Tier 4: n=32-63, 21 qubits ===
+n=32 (composite)  a=2 b=16  OK  time=1.04662s
+n=35 (composite)  a=5 b=7  OK  time=1.03229s
+n=47 (prime)  a=1 b=47  OK  time=1.0188s
+n=51 (composite)  a=3 b=17  OK  time=1.02529s
+n=61 (prime)  a=1 b=61  OK  time=1.0189s
+n=63 (composite)  a=3 b=21  OK  time=1.01193s
+
+=== Repeat n=15 x5 (consistency check, no seed param) ===
+n=15 (composite)  a=3 b=5  OK  time=0.0032215s
+n=15 (composite)  a=3 b=5  OK  time=0.00274588s
+n=15 (composite)  a=3 b=5  OK  time=0.00266852s
+n=15 (composite)  a=3 b=5  OK  time=0.00273813s
+n=15 (composite)  a=3 b=5  OK  time=0.00269625s
+
+done
+
+=== factor_tier5.cpp output (isolated single-shot spot checks, 25 qubits) ===
+
+starting n=85 ...
+n=85  a=5 b=17  OK  time=46.2377s
+starting n=91 ...
+n=91  a=7 b=13  OK  time=45.846s
+
+=== factor_boundary.cpp output ===
+
+n=128: threw as expected: c2q_factor: n requires 29 qubits (simulator limit 28); safe range is n <= 127 (num_result <= 7)
+
+=== Design note ===
+
+An earlier, exhaustive version of this test (deleted -- superseded, not
+kept) tried every composite from n=4..127 at 3 trials each. It got killed
+after 11+ minutes still running. Root cause: qubit count is a step
+function of n's bit-length (9/13/17/21/25 qubits per doubling range), so
+roughly half the composites in [4,127] (everything in [64,127]) land in
+the most expensive 25-qubit tier -- and that sweep queued ~150 such calls,
+each taking tens of seconds, before reaching any of the cheap sections.
+The fix was sampling a few representative points per qubit tier instead of
+exhaustive coverage, plus explicit output flushing so progress is visible
+rather than buffered until exit.

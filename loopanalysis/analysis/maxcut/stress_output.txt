@@ -1,0 +1,42 @@
+
+=== Structural: objective never negative (10 trials, N=10 random graph) ===
+  negative objectives: 0/10
+
+=== Completeness: complete graph K_N, layers=2, 10 seeds ===
+  N=4  truth=4  pass=10/10  (4.67178s for 10 seeds)
+  N=6  truth=9  pass=10/10  (5.71869s for 10 seeds)
+  N=8  truth=16  pass=8/10  (7.38583s for 10 seeds)
+  N=10  truth=25  pass=10/10  (9.176s for 10 seeds)
+  N=12  truth=36  pass=9/10  (11.6156s for 10 seeds)
+  N=14  truth=49  pass=10/10  (15.1507s for 10 seeds)
+  N=16  truth=64  pass=6/10  (21.2179s for 10 seeds)
+
+=== Completeness: cycle graph C_N, layers=2, 10 seeds ===
+  N=4  truth=4  pass=10/10  (3.73541s for 10 seeds)
+  N=6  truth=6  pass=10/10  (4.81701s for 10 seeds)
+  N=8  truth=8  pass=10/10  (5.16353s for 10 seeds)
+  N=10  truth=10  pass=10/10  (5.51866s for 10 seeds)
+  N=12  truth=12  pass=10/10  (5.78222s for 10 seeds)
+  N=14  truth=14  pass=10/10  (6.19692s for 10 seeds)
+  N=16  truth=16  pass=10/10  (6.97593s for 10 seeds)
+
+=== Completeness: random sparse graph (density 0.4), layers=2, 10 seeds ===
+  N=4  truth=8  pass=10/10  (4.43721s for 10 seeds)
+  N=6  truth=18  pass=6/10  (4.82491s for 10 seeds)
+  N=8  truth=35  pass=3/10  (5.74661s for 10 seeds)
+  N=10  truth=55  pass=5/10  (6.86317s for 10 seeds)
+  N=12  truth=73  pass=3/10  (7.57156s for 10 seeds)
+  N=14  truth=88  pass=0/10  (8.92817s for 10 seeds)
+  N=16  truth=125  pass=0/10  (12.0763s for 10 seeds)
+
+=== Wall-clock cliff: complete graph K_N, layers=2, single seed ===
+  N=18  truth=81  got=56  MISS  time=10.1492s
+  N=20  truth=100  got=99  MISS  time=50.4817s
+  N=22  truth=121  got=117  MISS  time=82.367s
+
+=== Depth sweep: random graph N=14, 5 seeds per layer count ===
+  layers=2  pass=1/5  (4.51019s for 5 seeds)
+  layers=4  pass=2/5  (6.00978s for 5 seeds)
+  layers=6  pass=1/5  (7.22583s for 5 seeds)
+
+done

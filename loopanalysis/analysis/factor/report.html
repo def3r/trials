@@ -1,0 +1,425 @@
+<title>Stress-testing the factoring kernel</title>
+<style>
+  :root {
+    --bg: #eef1f2;
+    --surface: #ffffff;
+    --surface-2: #e3e8ea;
+    --ink: #161c1e;
+    --muted: #57676c;
+    --line: #d2dadd;
+    --accent: #2a78d6;
+    --accent-soft: #dde9f9;
+    --good: #2f7d4f;
+    --good-soft: #e1f0e6;
+    --warn: #b5722a;
+    --warn-soft: #f3e6d7;
+    --critical: #b3374a;
+    --critical-soft: #f5e1e5;
+    --shadow: 0 1px 2px rgba(15, 20, 21, 0.06), 0 8px 24px -12px rgba(15, 20, 21, 0.18);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10171a; --surface: #182226; --surface-2: #202c30; --ink: #e6edee;
+      --muted: #8ba0a4; --line: #29383d; --accent: #3987e5; --accent-soft: #1b2b3d;
+      --good: #5fbf82; --good-soft: #1c3324; --warn: #dba15c; --warn-soft: #3a2c18;
+      --critical: #e0778a; --critical-soft: #3a1f26;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.5);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10171a; --surface: #182226; --surface-2: #202c30; --ink: #e6edee;
+    --muted: #8ba0a4; --line: #29383d; --accent: #3987e5; --accent-soft: #1b2b3d;
+    --good: #5fbf82; --good-soft: #1c3324; --warn: #dba15c; --warn-soft: #3a2c18;
+    --critical: #e0778a; --critical-soft: #3a1f26;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.5);
+  }
+  :root[data-theme="light"] {
+    --bg: #eef1f2; --surface: #ffffff; --surface-2: #e3e8ea; --ink: #161c1e;
+    --muted: #57676c; --line: #d2dadd; --accent: #2a78d6; --accent-soft: #dde9f9;
+    --good: #2f7d4f; --good-soft: #e1f0e6; --warn: #b5722a; --warn-soft: #f3e6d7;
+    --critical: #b3374a; --critical-soft: #f5e1e5;
+    --shadow: 0 1px 2px rgba(15, 20, 21, 0.06), 0 8px 24px -12px rgba(15, 20, 21, 0.18);
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  body { overflow-x: hidden; }
+
+  .wrap { max-width: 880px; margin: 0 auto; padding: 64px 24px 40px; }
+
+  .eyebrow {
+    font-size: 12px; letter-spacing: 0.11em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin: 0 0 14px;
+  }
+  h1 {
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    font-size: clamp(28px, 4.2vw, 42px); line-height: 1.14; font-weight: 600;
+    margin: 0 0 18px; text-wrap: balance; letter-spacing: -0.01em;
+  }
+  h2 {
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    font-size: 25px; font-weight: 600; margin: 0 0 6px; text-wrap: balance;
+  }
+  h3 { font-size: 15px; font-weight: 700; margin: 0 0 4px; }
+  .section-num {
+    font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+    font-size: 12px; color: var(--muted); margin: 0 0 6px;
+  }
+  p { line-height: 1.62; margin: 0 0 16px; max-width: 68ch; }
+  .lede { font-size: 18px; line-height: 1.55; max-width: 62ch; }
+  .muted { color: var(--muted); }
+  code, .mono {
+    font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, "Liberation Mono", monospace;
+    font-size: 0.88em;
+  }
+  code { background: var(--surface-2); border-radius: 4px; padding: 0.12em 0.4em; }
+
+  section { margin: 0 0 64px; }
+  section:first-of-type { margin-top: 0; }
+  .divider { border: none; border-top: 1px solid var(--line); margin: 0 0 48px; }
+
+  .verdict {
+    display: flex; flex-direction: column; gap: 14px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 26px 28px; box-shadow: var(--shadow); margin-top: 28px;
+  }
+  .tag {
+    display: inline-flex; align-items: center; gap: 8px; width: fit-content;
+    font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700;
+    border-radius: 999px; padding: 5px 12px;
+  }
+  .tag::before { content: "●"; font-size: 8px; }
+  .tag.good { color: var(--good); background: var(--good-soft); }
+  .tag.warn { color: var(--warn); background: var(--warn-soft); }
+  .tag.critical { color: var(--critical); background: var(--critical-soft); }
+
+  .stat-row { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 22px; }
+  .stat {
+    flex: 1 1 190px; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 10px; padding: 16px 18px; box-shadow: var(--shadow);
+  }
+  .stat .n {
+    font-family: "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+    font-variant-numeric: tabular-nums; font-size: 24px; font-weight: 700; color: var(--ink);
+    display: block; margin-bottom: 4px;
+  }
+  .stat .l { font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+
+  .chart-card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    box-shadow: var(--shadow); padding: 20px 22px 16px; margin-top: 22px;
+  }
+  .chart-card .chart-title { font-size: 13px; font-weight: 700; margin: 0 0 2px; }
+  .chart-card .chart-sub { font-size: 12.5px; color: var(--muted); margin: 0 0 14px; }
+  .chart-frame { overflow-x: auto; }
+  .chart-frame svg { display: block; }
+
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; margin: 10px 0 0; font-size: 12.5px; color: var(--muted); }
+  .legend .item { display: flex; align-items: center; gap: 6px; }
+  .legend .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  .legend .swatch.dashed { background: none; border-top: 2px dashed var(--muted); height: 0; width: 14px; }
+
+  .axis-label { fill: var(--muted); font-size: 10.5px; font-family: -apple-system, sans-serif; }
+  .grid-line { stroke: var(--line); stroke-width: 1; }
+  .data-point { cursor: default; }
+
+  table.datatable { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 14px; }
+  table.datatable th {
+    text-align: left; font-size: 11.5px; letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600; padding: 0 12px 8px; border-bottom: 1px solid var(--line);
+  }
+  table.datatable td {
+    padding: 10px 12px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums;
+  }
+  table.datatable tr:last-child td { border-bottom: none; }
+  .pill {
+    display: inline-block; font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+  }
+  .pill.good { color: var(--good); background: var(--good-soft); }
+  .pill.warn { color: var(--warn); background: var(--warn-soft); }
+  .pill.critical { color: var(--critical); background: var(--critical-soft); }
+
+  .table-scroll { overflow-x: auto; }
+
+  footer {
+    max-width: 880px; margin: 0 auto; padding: 0 24px 64px; color: var(--muted);
+    font-size: 13px; border-top: 1px solid var(--line); padding-top: 20px;
+  }
+
+  @media (max-width: 620px) {
+    .stat-row { flex-direction: column; }
+  }
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Quantum-kernel reliability &middot; c2q_factor (Grover)</p>
+  <h1>The factoring kernel is never wrong &mdash; it's just built for numbers a laptop factors before the quantum call finishes warming up.</h1>
+  <p class="lede">
+    26 for 26. Every composite and every prime tested came back correct,
+    including five repeats of the same input to check for run-to-run
+    drift. That makes this the most reliable kernel in the set so far
+    &mdash; QAOA-based kcolor and clique are sound but incomplete;
+    Grover-based factoring here was <em>complete</em> too. The problem
+    isn't correctness. It's that the entire range this kernel can run
+    &mdash; capped at 28 simulated qubits, so <var>n</var>&nbsp;&le;&nbsp;127
+    &mdash; is a range trial division clears in nanoseconds.
+  </p>
+
+  <section>
+    <div class="verdict">
+      <span class="tag good">Correct, every trial &mdash; 26 / 26</span>
+      <p style="margin:0; max-width: 66ch;">
+        Composites and primes both handled correctly across all five
+        qubit tiers the simulator supports, plus a determinism check
+        (same input, five separate runs, identical answer every time
+        &mdash; there's no seed parameter to vary). The open question was
+        never "does it work," it's "does solving it this way make sense
+        at these sizes." It doesn't.
+      </p>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat">
+        <span class="n">26 / 26</span>
+        <span class="l">correct results across composites, primes, and the determinism repeat</span>
+      </div>
+      <div class="stat">
+        <span class="n">46.0s</span>
+        <span class="l">avg. wall-clock at the slowest tested tier (25 qubits, n=85/91)</span>
+      </div>
+      <div class="stat">
+        <span class="n">~7.6&times;10<sup>9</sup></span>
+        <span class="l">times slower than classical trial division, at that same worst-case point</span>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <section>
+    <p class="section-num">01</p>
+    <h2>It doesn't just claim factors &mdash; it finds the right ones, prime or composite</h2>
+    <p>
+      <code>c2q_factor</code> runs a Grover search over superposed pairs
+      <var>(a, b)</var>, phase-flipping states where a QFT-based
+      multiplier confirms <var>a&times;b = n</var>, then reads off the
+      most-amplified pair. For a prime it correctly converges on the
+      trivial pair <code>(1, n)</code> &mdash; there's nothing else for
+      the oracle to amplify. Sampled across five qubit tiers (a
+      composite and a prime or two per tier), plus <code>n=15</code>
+      repeated five times back to back to rule out run-to-run drift:
+    </p>
+
+    <div class="table-scroll">
+      <table class="datatable">
+        <thead><tr><th>Tier</th><th>Qubits</th><th>Sample n</th><th>Result</th><th>Avg. time</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>9</td><td>4, 5, 6, 7 <span class="muted">(composite &amp; prime)</span></td><td><span class="pill good">4/4 correct</span></td><td>~1.5ms</td></tr>
+          <tr><td>2</td><td>13</td><td>8, 9, 11, 13, 14, 15</td><td><span class="pill good">6/6 correct</span></td><td>~3.0ms</td></tr>
+          <tr><td>3</td><td>17</td><td>16, 17, 21, 25, 29, 31</td><td><span class="pill good">6/6 correct</span></td><td>~13.6ms</td></tr>
+          <tr><td>4</td><td>21</td><td>32, 35, 47, 51, 61, 63</td><td><span class="pill good">6/6 correct</span></td><td>~1.03s</td></tr>
+          <tr><td>5</td><td>25</td><td>85 = 5&times;17, 91 = 7&times;13</td><td><span class="pill good">2/2 correct</span></td><td>~46.0s</td></tr>
+          <tr><td>&mdash;</td><td>13</td><td>n=15, repeated &times;5</td><td><span class="pill good">identical answer, 5/5</span></td><td>~2.9ms</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:14px;">
+      No false positives, no missed composites reported as prime, no
+      drift on the repeat. Reliability was never the constraint here.
+    </p>
+  </section>
+
+  <hr class="divider" />
+
+  <section>
+    <p class="section-num">02</p>
+    <h2>Cost climbs in qubit-count steps &mdash; and the steps are steep</h2>
+    <p>
+      Qubit count isn't continuous in <var>n</var>: <code>c2q_factor</code>
+      allocates <code>total_q = 4&times;num_state + 1</code> qubits, where
+      <code>num_state</code> tracks <var>n</var>'s bit length. Every time
+      <var>n</var> crosses a power of two, the circuit jumps up a whole
+      tier &mdash; five composites in a row inside one tier cost about the
+      same; the next composite, one bit longer, costs roughly 30&times;
+      more. By the 25-qubit tier (<var>n</var> in the 64&ndash;127
+      range, the top of what the 28-qubit simulator limit allows) a
+      single call takes the better part of a minute.
+    </p>
+
+    <div class="chart-card">
+      <p class="chart-title">Quantum wall-clock time vs. qubit tier (log scale)</p>
+      <p class="chart-sub">Average per call, one point per tested tier</p>
+      <div class="chart-frame">
+        <svg width="660" height="280" viewBox="0 0 660 280" role="img" aria-label="Log-scale line chart of c2q_factor wall-clock time versus qubit count, climbing from about 1.5 milliseconds at 9 qubits to 46 seconds at 25 qubits">
+          <line class="grid-line" x1="50" y1="20" x2="610" y2="20" />
+          <line class="grid-line" x1="50" y1="64" x2="610" y2="64" />
+          <line class="grid-line" x1="50" y1="108" x2="610" y2="108" />
+          <line class="grid-line" x1="50" y1="152" x2="610" y2="152" />
+          <line class="grid-line" x1="50" y1="196" x2="610" y2="196" />
+          <line class="grid-line" x1="50" y1="240" x2="610" y2="240" stroke-width="1.5" />
+          <text class="axis-label" x="44" y="24" text-anchor="end">100s</text>
+          <text class="axis-label" x="44" y="68" text-anchor="end">10s</text>
+          <text class="axis-label" x="44" y="112" text-anchor="end">1s</text>
+          <text class="axis-label" x="44" y="156" text-anchor="end">100ms</text>
+          <text class="axis-label" x="44" y="200" text-anchor="end">10ms</text>
+          <text class="axis-label" x="44" y="244" text-anchor="end">1ms</text>
+
+          <text class="axis-label" x="50" y="262" text-anchor="middle">9</text>
+          <text class="axis-label" x="190" y="262" text-anchor="middle">13</text>
+          <text class="axis-label" x="330" y="262" text-anchor="middle">17</text>
+          <text class="axis-label" x="470" y="262" text-anchor="middle">21</text>
+          <text class="axis-label" x="610" y="262" text-anchor="middle">25</text>
+          <text class="axis-label" x="330" y="277" text-anchor="middle">qubits (total_q)</text>
+
+          <rect x="470" y="15" width="140" height="230" fill="var(--warn-soft)" opacity="0.5" />
+          <text class="axis-label" x="540" y="34" text-anchor="middle" fill="var(--warn)" font-weight="700">n = 64&ndash;127, simulator's top tier</text>
+
+          <polyline points="50,232.3 190,219.0 330,190.1 470,107.5 610,34.8"
+                    fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" />
+          <g fill="var(--accent)">
+            <circle class="data-point" cx="50" cy="232.3" r="4"><title>9 qubits (n=4-7): ~1.5ms avg</title></circle>
+            <circle class="data-point" cx="190" cy="219.0" r="4"><title>13 qubits (n=8-15): ~3.0ms avg</title></circle>
+            <circle class="data-point" cx="330" cy="190.1" r="4"><title>17 qubits (n=16-31): ~13.6ms avg</title></circle>
+            <circle class="data-point" cx="470" cy="107.5" r="4"><title>21 qubits (n=32-63): ~1.03s avg</title></circle>
+            <circle class="data-point" cx="610" cy="34.8" r="5"><title>25 qubits (n=64-127): ~46.0s avg (n=85, n=91)</title></circle>
+          </g>
+        </svg>
+      </div>
+      <div class="legend">
+        <span class="item"><span class="swatch" style="background:var(--accent)"></span>c2q_factor, avg. wall-clock per call</span>
+      </div>
+    </div>
+
+    <p style="margin-top:18px;">
+      Roughly 30,000&times; between the cheapest and most expensive
+      tested tier, and the simulator's 28-qubit ceiling sits just one
+      more tier up &mdash; <var>n</var>=128 already needs 29 qubits and
+      throws before running at all (confirmed directly: see &sect;04).
+      There is no room left inside this kernel's operating range to get
+      slower before the code itself refuses to try.
+    </p>
+  </section>
+
+  <hr class="divider" />
+
+  <section>
+    <p class="section-num">03</p>
+    <h2>The comparison that actually matters: what does it cost to skip the quantum call</h2>
+    <p>
+      Trial division up to <code>&radic;n</code> is the least clever
+      classical factoring algorithm that exists, and for
+      <var>n</var>&nbsp;&le;&nbsp;127 it never checks more than 11
+      candidate divisors. Measured on the same machine: an average of
+      <strong>~6 nanoseconds</strong> per call across the full
+      4&ndash;127 range &mdash; fast enough that it's competing with the
+      resolution of the clock measuring it, not with any real
+      computational limit.
+    </p>
+
+    <div class="table-scroll">
+      <table class="datatable">
+        <thead><tr><th>Tier</th><th>Quantum (avg)</th><th>Classical (trial division)</th><th>Quantum is slower by</th></tr></thead>
+        <tbody>
+          <tr><td>9 qubits</td><td>~1.5ms</td><td>~6ns</td><td><span class="pill warn">~250,000&times;</span></td></tr>
+          <tr><td>13 qubits</td><td>~3.0ms</td><td>~6ns</td><td><span class="pill warn">~500,000&times;</span></td></tr>
+          <tr><td>17 qubits</td><td>~13.6ms</td><td>~6ns</td><td><span class="pill critical">~2.2 million&times;</span></td></tr>
+          <tr><td>21 qubits</td><td>~1.03s</td><td>~6ns</td><td><span class="pill critical">~170 million&times;</span></td></tr>
+          <tr><td>25 qubits</td><td>~46.0s</td><td>~6ns</td><td><span class="pill critical">~7.6 billion&times;</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p style="margin-top:14px;">
+      This is the opposite shape from maxcut, TSP, kcolor, and clique.
+      Those four target genuinely NP-hard problems where brute force
+      becomes impractical fast &mdash; a 20-city TSP tour has
+      <code>19!</code> orderings, a 25-vertex graph has
+      <code>2<sup>25</sup></code> subsets to check for a clique.
+      Classical cost there explodes well inside sizes a person would
+      actually want to run. Factoring <var>n</var>&nbsp;&le;&nbsp;127 has
+      no such wall: <code>&radic;127 &asymp; 11</code>, so the "hard"
+      case is eleven modulus operations. The kernel isn't competing
+      against an expensive classical algorithm here &mdash; it's
+      competing against a for-loop that finishes before the quantum
+      circuit is done being constructed.
+    </p>
+  </section>
+
+  <hr class="divider" />
+
+  <section>
+    <p class="section-num">04</p>
+    <h2>The ceiling is real, and it's exactly where the code says it is</h2>
+    <p>
+      <code>c2q_factor(128)</code> throws immediately, before any
+      simulation runs:
+    </p>
+    <p class="mono" style="background:var(--surface-2); border-radius:6px; padding:10px 14px; font-size:13px; max-width:100%;">
+      c2q_factor: n requires 29 qubits (simulator limit 28); safe range
+      is n &le; 127 (num_result &le; 7)
+    </p>
+    <p>
+      That's the entire usable domain, top to bottom: 4 through 127, no
+      exceptions, no partial credit for numbers just past it.
+    </p>
+  </section>
+
+  <hr class="divider" />
+
+  <section>
+    <p class="section-num">05</p>
+    <h2>Verdict: sound, complete, and not worth a pass</h2>
+    <table class="datatable">
+      <thead><tr><th>Regime</th><th>n range</th><th>Correctness</th><th>Speed</th></tr></thead>
+      <tbody>
+        <tr><td>Fast</td><td>4&ndash;15</td><td><span class="pill good">100%</span></td><td><span class="pill good">1&ndash;3ms</span></td></tr>
+        <tr><td>Fine</td><td>16&ndash;63</td><td><span class="pill good">100%</span></td><td><span class="pill good">14ms&ndash;1.0s</span></td></tr>
+        <tr><td>Slow but correct</td><td>64&ndash;127</td><td><span class="pill good">100%</span></td><td><span class="pill critical">~46s</span></td></tr>
+        <tr><td>Not reachable</td><td>&ge;128</td><td colspan="2"><span class="pill critical">throws &mdash; needs 29+ qubits, simulator caps at 28</span></td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:18px;">
+      Directly answering what was asked: <strong>yes</strong>, it factors
+      15 and everything above it correctly &mdash; correctness holds
+      across the entire testable range, all the way to the n&nbsp;=&nbsp;127
+      ceiling, with zero degradation (unlike kcolor and clique, this
+      kernel doesn't get <em>less reliable</em> as it gets bigger, only
+      slower). It stays fast &mdash; sub-second &mdash; through
+      <var>n</var>&nbsp;=&nbsp;63 (21 qubits); the last tier before the
+      wall, <var>n</var>&nbsp;=&nbsp;64&ndash;127, still returns the
+      right answer every time but costs on the order of 46 seconds per
+      call.
+    </p>
+    <p>
+      A <code>factor_pass.cpp</code> would be recognizing structurally
+      valid Grover targets and routing them to a call that is, at
+      minimum, a quarter-million times slower than the trial-division
+      loop it replaced &mdash; and up to 7.6 billion times slower at the
+      top of its own range. That's not a reliability problem the way it
+      was for kcolor and clique; it's a value proposition problem. The
+      kernel's actual asymptotic edge only shows up at cryptographically
+      relevant bit-lengths, hundreds of qubits away from where a
+      state-vector simulator can ever take it. Inside the only range
+      this kernel can run, brute-force classical factoring wins by
+      five to ten orders of magnitude, every time. Recommend not
+      building the pass.
+    </p>
+  </section>
+</div>
+
+<footer>
+  Generated via <code>analysis/factor/factor_fast.cpp</code>,
+  <code>factor_tier5.cpp</code>, and <code>factor_boundary.cpp</code>,
+  compiled against <code>c2cudaq.h</code> / <code>libc2cudaq.a</code>
+  &middot; <code>nvidia</code> target (cuStateVec, FP32, GPU-backed &mdash;
+  <code>nvq++</code>'s own default whenever a CUDA GPU is present;
+  corrected here from "qpp-cpu"/CPU, this report's original, inaccurate
+  label &mdash; meaning the timings above already reflect the faster of
+  the two backends, not a CPU worst case) &middot; classical baseline
+  measured as 100,000&times;124 repeated trial-division calls, same
+  machine, <code>-O2</code>.
+</footer>

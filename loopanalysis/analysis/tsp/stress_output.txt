@@ -1,0 +1,11 @@
+
+=== Qubit ceiling: N=6 (36 qubits) should throw immediately ===
+  threw as expected: TSP QAOA needs 36 qubits (limit 28). Reduce problem size.
+
+=== Completeness: N=3 (9 qubits), layers=2, 10 seeds ===
+  truth=31  pass=4/10  invalid=6/10  (7.98461s for 10 seeds)
+
+=== Completeness: N=4 (16 qubits), layers=2, 10 seeds ===
+  truth=51  pass=0/10  invalid=10/10  (15.5406s for 10 seeds)
+
+=== Completeness: N=5 (25 qubits), layers=2, 5 seeds ===
